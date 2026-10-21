@@ -27,15 +27,14 @@ class DjScriptGenerator(
         const val DEFAULT_DEEPSEEK_MODEL = "deepseek-chat"
 
         private const val DJ_SYSTEM_PROMPT =
-            "Sos Livi, la DJ y locutora de radio oficial de este reproductor de música. " +
-            "Hablás con acento rioplatense natural, cálido y fresco, usando voseo ('te traigo', 'escuchá', 'vamos con', 'arrancamos con'). " +
-            "Tu misión es presentar el siguiente bloque musical en 1 o 2 oraciones muy cortas (máximo 20 a 25 palabras en total). " +
-            "REGLAS OBLIGATORIAS PARA SÍNTESIS DE VOZ: " +
-            "1. El texto se envía directamente a un sintetizador de voz (TTS). Cualquier símbolo será pronunciado en voz alta. " +
-            "2. NUNCA uses comillas, asteriscos, guiones, barras, paréntesis ni corchetes. " +
-            "3. NUNCA uses emojis, emoticones ni hashtags. " +
-            "4. NUNCA agregues acotaciones como (música de fondo), ni 'Livi:'. " +
-            "5. Escribí únicamente texto corrido en castellano limpio con letras, puntos y comas."
+            "Sos Livi, locutora de radio argentina de este reproductor de música. " +
+            "Hablás únicamente en castellano con acento rioplatense natural y voseo ('te traigo', 'escuchá', 'vamos con', 'arrancamos con'). " +
+            "Tu misión es presentar el siguiente bloque musical en 1 sola oración cortísima de máximo 15 palabras. " +
+            "REGLAS ESTRICTAS: " +
+            "1. Escribí ÚNICAMENTE la frase exacta que vas a decir al aire. Jamás expliques tu razonamiento ni repitas la consigna. " +
+            "2. Hablá 100% en castellano. " +
+            "3. NUNCA uses comillas, asteriscos, guiones, barras, paréntesis ni emojis. " +
+            "4. NUNCA incluyas prefijos como 'Livi:' ni acotaciones."
 
         suspend fun fetchModels(
             apiKey: String?,
@@ -152,8 +151,8 @@ class DjScriptGenerator(
                         put("content", userPrompt)
                     })
                 })
-                put("temperature", 0.7)
-                put("max_tokens", 350)
+                put("temperature", 0.6)
+                put("max_tokens", 1024)
             }
 
             val body = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
@@ -177,19 +176,14 @@ class DjScriptGenerator(
             }
 
             val responseBody = response.body?.string() ?: return@withContext generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong)
-            Log.d(TAG, "LLM raw response: $responseBody")
             val jsonResponse = JSONObject(responseBody)
             val choices = jsonResponse.optJSONArray("choices")
             if (choices != null && choices.length() > 0) {
                 val choice = choices.getJSONObject(0)
                 val msg = choice.optJSONObject("message")
-                var raw = msg?.optString("content")?.trim()
-                if (raw.isNullOrBlank()) {
-                    raw = msg?.optString("reasoning_content")?.trim()
-                }
-                if (raw.isNullOrBlank()) {
-                    raw = choice.optString("text").trim()
-                }
+                // Only take the actual assistant content, NEVER reasoning_content (which is internal thoughts)
+                val raw = msg?.optString("content")?.takeIf { it.isNotBlank() }
+                    ?: choice.optString("text").takeIf { it.isNotBlank() }
 
                 if (!raw.isNullOrBlank()) {
                     val clean = sanitizeScript(raw)
@@ -214,15 +208,15 @@ class DjScriptGenerator(
     ): String {
         val sb = StringBuilder()
         if (previousSong != null) {
-            sb.append("Acabamos de escuchar ${previousSong.title} de ${previousSong.artist}. ")
+            sb.append("Venimos de escuchar ${previousSong.title} de ${previousSong.artist}. ")
         }
-        sb.append("El próximo bloque es: $blockTheme. ")
-        sb.append("Las canciones que vienen son: ")
-        upcomingSongs.take(3).forEachIndexed { index, song ->
-            sb.append("${song.title} de ${song.artist}")
-            if (index < upcomingSongs.take(3).lastIndex) sb.append(", ")
+        val first = upcomingSongs.firstOrNull()
+        if (first != null) {
+            sb.append("Ahora arranca el bloque $blockTheme con ${first.title} de ${first.artist}. ")
+        } else {
+            sb.append("Ahora arranca el bloque $blockTheme. ")
         }
-        sb.append(". Hacé una intro radial hablada, cortísima y sin comillas, asteriscos, paréntesis ni emojis.")
+        sb.append("Escribí una intro radial de 1 sola oración corta (máximo 15 palabras) en castellano rioplatense, sin comillas ni asteriscos.")
         return sb.toString()
     }
 
