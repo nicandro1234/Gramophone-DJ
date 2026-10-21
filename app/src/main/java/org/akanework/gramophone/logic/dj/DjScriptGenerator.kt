@@ -10,16 +10,22 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 class DjScriptGenerator(
     private val context: Context,
-    private val apiKeyProvider: () -> String? = { null }
+    private val apiKeyProvider: () -> String? = { null },
+    private val endpointProvider: () -> String? = { null },
+    private val modelProvider: () -> String? = { null }
 ) {
     companion object {
         private const val TAG = "DjScriptGenerator"
-        private const val DEFAULT_DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+        const val OPENCODE_BASE_URL = "https://opencode.ai/zen/go/v1/chat/completions"
+        const val DEFAULT_OPENCODE_MODEL = "deepseek-v4.1-flash"
+
+        const val DIRECT_DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+        const val DEFAULT_DEEPSEEK_MODEL = "deepseek-chat"
+
         private const val DJ_SYSTEM_PROMPT =
             "Sos Livi, la DJ de radio oficial de este reproductor de música. " +
             "Tenés una personalidad cálida, fresca, apasionada por la música, con acento rioplatense natural (usando voseo: 'te traigo', 'escuchá', 'vamos con'). " +
@@ -37,16 +43,23 @@ class DjScriptGenerator(
         blockTheme: String,
         previousSong: DjSongInfo? = null
     ): String = withContext(Dispatchers.IO) {
-        val apiKey = apiKeyProvider()
+        val apiKey = apiKeyProvider()?.trim()
         if (apiKey.isNullOrBlank()) {
-            Log.d(TAG, "No DeepSeek API key configured, using offline template generator.")
+            Log.d(TAG, "No API key configured, using offline template generator.")
             return@withContext generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong)
         }
+
+        val isOpenCode = apiKey.startsWith("oc_sk_") || apiKey.contains("opencode")
+        val endpoint = endpointProvider()?.takeIf { it.isNotBlank() }
+            ?: if (isOpenCode) OPENCODE_BASE_URL else DIRECT_DEEPSEEK_URL
+
+        val model = modelProvider()?.takeIf { it.isNotBlank() }
+            ?: if (isOpenCode) DEFAULT_OPENCODE_MODEL else DEFAULT_DEEPSEEK_MODEL
 
         try {
             val userPrompt = buildUserPrompt(upcomingSongs, blockTheme, previousSong)
             val jsonPayload = JSONObject().apply {
-                put("model", "deepseek-chat")
+                put("model", model)
                 put("messages", JSONArray().apply {
                     put(JSONObject().apply {
                         put("role", "system")
@@ -62,16 +75,22 @@ class DjScriptGenerator(
             }
 
             val body = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-            val request = Request.Builder()
-                .url(DEFAULT_DEEPSEEK_URL)
+            val requestBuilder = Request.Builder()
+                .url(endpoint)
                 .addHeader("Authorization", "Bearer $apiKey")
                 .addHeader("Content-Type", "application/json")
-                .post(body)
-                .build()
+
+            if (isOpenCode) {
+                requestBuilder.addHeader("x-opencode-session", "gramophone-dj-livi")
+            }
+
+            val request = requestBuilder.post(body).build()
+            Log.d(TAG, "Requesting script from $endpoint using model $model (isOpenCode=$isOpenCode)")
 
             val response = httpClient.newCall(request).execute()
             if (!response.isSuccessful) {
-                Log.w(TAG, "DeepSeek call failed: ${response.code} ${response.message}")
+                val errBody = response.body?.string() ?: ""
+                Log.w(TAG, "API call failed (${response.code} ${response.message}): $errBody")
                 return@withContext generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong)
             }
 
@@ -80,11 +99,11 @@ class DjScriptGenerator(
             val choices = jsonResponse.getJSONArray("choices")
             if (choices.length() > 0) {
                 val script = choices.getJSONObject(0).getJSONObject("message").getString("content").trim()
-                Log.i(TAG, "DeepSeek generated script: $script")
+                Log.i(TAG, "Generated script: $script")
                 return@withContext sanitizeScript(script)
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Exception calling DeepSeek API, falling back to local script", e)
+            Log.w(TAG, "Exception calling LLM endpoint ($endpoint), falling back to local script", e)
         }
 
         generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong)

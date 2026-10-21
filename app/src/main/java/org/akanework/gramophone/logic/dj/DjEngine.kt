@@ -17,7 +17,9 @@ import java.io.File
 class DjEngine(
     private val context: Context,
     private val playerProvider: () -> ExoPlayer?,
-    private val apiKeyProvider: () -> String? = { null }
+    private val apiKeyProvider: () -> String? = { null },
+    private val endpointProvider: () -> String? = { null },
+    private val modelProvider: () -> String? = { null }
 ) {
     companion object {
         private const val TAG = "DjEngine"
@@ -27,10 +29,18 @@ class DjEngine(
         fun getInstance(
             context: Context,
             playerProvider: () -> ExoPlayer?,
-            apiKeyProvider: () -> String? = { null }
+            apiKeyProvider: () -> String? = { null },
+            endpointProvider: () -> String? = { null },
+            modelProvider: () -> String? = { null }
         ): DjEngine {
             return instance ?: synchronized(this) {
-                instance ?: DjEngine(context.applicationContext, playerProvider, apiKeyProvider).also { instance = it }
+                instance ?: DjEngine(
+                    context.applicationContext,
+                    playerProvider,
+                    apiKeyProvider,
+                    endpointProvider,
+                    modelProvider
+                ).also { instance = it }
             }
         }
     }
@@ -38,7 +48,7 @@ class DjEngine(
     private val scope = CoroutineScope(Dispatchers.Default + Job())
 
     val clusterer = DjBlockClusterer()
-    val scriptGenerator = DjScriptGenerator(context, apiKeyProvider)
+    val scriptGenerator = DjScriptGenerator(context, apiKeyProvider, endpointProvider, modelProvider)
     val ttsEngine = DjTtsEngine(context)
     val duckingCoordinator = DjDuckingCoordinator(context, playerProvider)
 

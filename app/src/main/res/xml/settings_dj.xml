@@ -14,6 +14,18 @@
         android:summary="@string/settings_dj_deepseek_key_summary"
         android:title="@string/settings_dj_deepseek_key_title" />
 
+    <EditTextPreference
+        android:dialogTitle="@string/settings_dj_model_title"
+        android:key="dj_api_model"
+        android:summary="@string/settings_dj_model_summary"
+        android:title="@string/settings_dj_model_title" />
+
+    <EditTextPreference
+        android:dialogTitle="@string/settings_dj_endpoint_title"
+        android:key="dj_api_endpoint"
+        android:summary="@string/settings_dj_endpoint_summary"
+        android:title="@string/settings_dj_endpoint_title" />
+
     <Preference
         android:key="dj_test_speech"
         android:summary="@string/settings_dj_test_speech_summary"

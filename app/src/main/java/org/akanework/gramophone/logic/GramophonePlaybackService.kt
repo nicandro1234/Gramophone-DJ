@@ -583,7 +583,9 @@ class GramophonePlaybackService : MediaLibraryService(), MediaSessionService.Lis
         djEngine = DjEngine.getInstance(
             context = this,
             playerProvider = { endedWorkaroundPlayer?.exoPlayer },
-            apiKeyProvider = { prefs.getString("deepseek_api_key", null) }
+            apiKeyProvider = { prefs.getString("deepseek_api_key", null) },
+            endpointProvider = { prefs.getString("dj_api_endpoint", null) },
+            modelProvider = { prefs.getString("dj_api_model", null) }
         )
         djEngine?.setDjModeEnabled(prefs.getBoolean("dj_mode_enabled", false))
         controller = MediaBrowser.Builder(this, mediaSession!!.token).buildAsync().get()
