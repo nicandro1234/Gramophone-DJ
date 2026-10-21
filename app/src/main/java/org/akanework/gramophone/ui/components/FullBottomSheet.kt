@@ -26,6 +26,9 @@ import android.content.Intent
 import android.widget.Toast
 import android.content.res.ColorStateList
 import org.akanework.gramophone.ui.fragments.settings.DjSettingsActivity
+import org.akanework.gramophone.logic.dj.DjEngine
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.first
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
@@ -498,10 +501,31 @@ class FullBottomSheet
             val current = prefs.getBoolean("dj_mode_enabled", false)
             val next = !current
             prefs.edit().putBoolean("dj_mode_enabled", next).apply()
-            GramophonePlaybackService.instanceForWidgetAndLyricsOnly?.djEngine?.setDjModeEnabled(next)
             updateDjState()
-            val msg = if (next) "🎙️ Modo DJ Livi activado" else "Modo DJ desactivado"
-            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+
+            val service = GramophonePlaybackService.instanceForWidgetAndLyricsOnly
+            val djEngine = service?.djEngine ?: DjEngine.getInstance(
+                context = context,
+                playerProvider = { service?.endedWorkaroundPlayer?.exoPlayer },
+                apiKeyProvider = { prefs.getString("deepseek_api_key", null) },
+                endpointProvider = { prefs.getString("dj_api_endpoint", null) },
+                modelProvider = {
+                    val m = prefs.getString("dj_api_model", null)
+                    if (m == "custom") prefs.getString("dj_api_model_custom", null) else m
+                }
+            )
+
+            if (next) {
+                Toast.makeText(context, "🎙️ Modo DJ Livi activado", Toast.LENGTH_SHORT).show()
+                activity.lifecycleScope.launch {
+                    val songs = activity.reader.songListFlow.first()
+                    djEngine.startDjSession(activity.getPlayer(), songs)
+                }
+            } else {
+                djEngine.setDjModeEnabled(false)
+                djEngine.duckingCoordinator.cancelSpeechAndRestore()
+                Toast.makeText(context, "Modo DJ desactivado", Toast.LENGTH_SHORT).show()
+            }
         }
 
         bottomSheetDjButton.setOnLongClickListener {

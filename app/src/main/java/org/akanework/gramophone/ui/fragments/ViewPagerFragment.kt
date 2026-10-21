@@ -20,21 +20,27 @@ package org.akanework.gramophone.ui.fragments
 import androidx.preference.PreferenceManager
 import org.akanework.gramophone.logic.GramophonePlaybackService
 import org.akanework.gramophone.ui.fragments.settings.DjSettingsActivity
+import org.akanework.gramophone.logic.dj.DjEngine
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.SharedPreferences
+import android.graphics.Color
 import android.media.audiofx.AudioEffect
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.LayoutInflater
+import android.view.Menu
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
 import coil3.SingletonImageLoader
@@ -78,6 +84,12 @@ class ViewPagerFragment : BaseFragment(true) {
     private lateinit var viewPager2: ViewPager2
     private lateinit var adapter: ViewPager2Adapter
 
+    private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "dj_mode_enabled") {
+            updateDjMenuIcon()
+        }
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -92,6 +104,16 @@ class ViewPagerFragment : BaseFragment(true) {
         appBarLayout.enableEdgeToEdgePaddingListener()
         topAppBar.overflowIcon =
             AppCompatResources.getDrawable(requireContext(), R.drawable.ic_more_vert_alt_topappbar)
+
+        val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
+        prefs.registerOnSharedPreferenceChangeListener(prefListener)
+        topAppBar.post {
+            updateDjMenuIcon(topAppBar.menu)
+            topAppBar.findViewById<View>(R.id.dj_mode)?.setOnLongClickListener {
+                startActivity(Intent(requireContext(), DjSettingsActivity::class.java))
+                true
+            }
+        }
 
         topAppBar.setOnMenuItemClickListener { it ->
             val activity = requireActivity() as MainActivity
@@ -196,9 +218,31 @@ class ViewPagerFragment : BaseFragment(true) {
                     val currentEnabled = prefs.getBoolean("dj_mode_enabled", false)
                     val newEnabled = !currentEnabled
                     prefs.edit().putBoolean("dj_mode_enabled", newEnabled).apply()
-                    GramophonePlaybackService.instanceForWidgetAndLyricsOnly?.djEngine?.setDjModeEnabled(newEnabled)
-                    val msg = if (newEnabled) "🎙️ Modo DJ Livi activado" else "Modo DJ desactivado"
-                    Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+                    updateDjMenuIcon(topAppBar.menu)
+
+                    val service = GramophonePlaybackService.instanceForWidgetAndLyricsOnly
+                    val djEngine = service?.djEngine ?: DjEngine.getInstance(
+                        context = requireContext(),
+                        playerProvider = { service?.endedWorkaroundPlayer?.exoPlayer },
+                        apiKeyProvider = { prefs.getString("deepseek_api_key", null) },
+                        endpointProvider = { prefs.getString("dj_api_endpoint", null) },
+                        modelProvider = {
+                            val m = prefs.getString("dj_api_model", null)
+                            if (m == "custom") prefs.getString("dj_api_model_custom", null) else m
+                        }
+                    )
+
+                    if (newEnabled) {
+                        Toast.makeText(requireContext(), "🎙️ Modo DJ Livi activado", Toast.LENGTH_SHORT).show()
+                        lifecycleScope.launch {
+                            val songs = activity.reader.songListFlow.first()
+                            djEngine.startDjSession(activity.getPlayer(), songs)
+                        }
+                    } else {
+                        djEngine.setDjModeEnabled(false)
+                        djEngine.duckingCoordinator.cancelSpeechAndRestore()
+                        Toast.makeText(requireContext(), "Modo DJ desactivado", Toast.LENGTH_SHORT).show()
+                    }
                 }
 
                 R.id.settings -> {
@@ -342,5 +386,30 @@ class ViewPagerFragment : BaseFragment(true) {
             }
         }
         snackBar.show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateDjMenuIcon()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        context?.let {
+            PreferenceManager.getDefaultSharedPreferences(it).unregisterOnSharedPreferenceChangeListener(prefListener)
+        }
+    }
+
+    private fun updateDjMenuIcon(menu: Menu? = null) {
+        val targetMenu = menu ?: view?.findViewById<MaterialToolbar>(R.id.topAppBar)?.menu ?: return
+        val djItem = targetMenu.findItem(R.id.dj_mode) ?: return
+        val context = context ?: return
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val enabled = prefs.getBoolean("dj_mode_enabled", false)
+        val activeColor = MaterialColors.getColor(context, androidx.appcompat.R.attr.colorPrimary, Color.WHITE)
+        val inactiveColor = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurface, Color.GRAY)
+        djItem.icon?.mutate()?.let { drawable ->
+            DrawableCompat.setTint(drawable, if (enabled) activeColor else inactiveColor)
+        }
     }
 }

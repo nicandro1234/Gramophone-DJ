@@ -185,7 +185,7 @@ class DjSettingsFragment : BasePreferenceFragment() {
 
     private fun testDjVoice() {
         val context = requireContext()
-        Toast.makeText(context, "Sintetizando voz de prueba con Kokoro...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Probando voz de Livi...", Toast.LENGTH_SHORT).show()
 
         lifecycleScope.launch {
             val service = GramophonePlaybackService.instanceForWidgetAndLyricsOnly
@@ -201,23 +201,7 @@ class DjSettingsFragment : BasePreferenceFragment() {
                 }
             )
 
-            val dummyMediaItem = MediaItem.Builder()
-                .setMediaId("test_1")
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle("De Música Ligera")
-                        .setArtist("Soda Stereo")
-                        .setAlbumTitle("Canción Animal")
-                        .setRecordingYear(1990)
-                        .setGenre("Rock Nacional")
-                        .build()
-                )
-                .build()
-
-            djEngine.triggerImmediateIntervention(
-                currentSong = null,
-                upcomingSongs = listOf(dummyMediaItem)
-            )
+            djEngine.testVoice()
         }
     }
 }

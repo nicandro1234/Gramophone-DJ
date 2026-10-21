@@ -3,7 +3,9 @@ package org.akanework.gramophone.logic.dj
 import android.content.Context
 import android.util.Log
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -12,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.akanework.gramophone.logic.setMediaItemsWithTitle
 import java.io.File
 
 class DjEngine(
@@ -68,6 +71,9 @@ class DjEngine(
 
     fun setDjModeEnabled(enabled: Boolean) {
         _isDjModeEnabled.value = enabled
+        if (!enabled) {
+            duckingCoordinator.cancelSpeechAndRestore()
+        }
         Log.i(TAG, "DJ Mode set to: $enabled")
     }
 
@@ -80,6 +86,66 @@ class DjEngine(
     }
 
     /**
+     * Start a DJ playback session immediately:
+     * - If idle/stopped: cluster songs, populate queue, begin playback, and trigger first block intro speech.
+     * - If already playing: cluster queue/songs and trigger speech over current song's intro.
+     */
+    fun startDjSession(controller: Player?, songs: List<MediaItem>) {
+        setDjModeEnabled(true)
+        if (songs.isEmpty()) {
+            Log.w(TAG, "No songs available to start DJ session.")
+            return
+        }
+
+        val isPlaying = controller?.isPlaying == true
+        val currentItem = controller?.currentMediaItem
+
+        if (!isPlaying || currentItem == null) {
+            val blocks = clusterer.clusterTracks(songs)
+            _currentBlocks.value = blocks
+            _activeBlockIndex.value = 0
+
+            val orderedSongs = blocks.flatMap { it.songs }.ifEmpty { songs }
+
+            if (controller is MediaController) {
+                controller.setMediaItemsWithTitle(
+                    orderedSongs,
+                    title = "DJ Livi Mix",
+                    shuffleEnabled = false
+                )
+            } else {
+                controller?.setMediaItems(orderedSongs)
+            }
+            controller?.prepare()
+            controller?.play()
+
+            blocks.firstOrNull()?.let { firstBlock ->
+                triggerInterventionForBlock(firstBlock, previousSong = null)
+            }
+        } else {
+            val currentQueue = mutableListOf<MediaItem>()
+            val count = controller.mediaItemCount
+            for (i in 0 until count) {
+                currentQueue.add(controller.getMediaItemAt(i))
+            }
+            val pool = if (currentQueue.isNotEmpty()) currentQueue else songs
+            setupQueue(pool)
+
+            val currIdx = controller.currentMediaItemIndex
+            val upcoming = if (currentQueue.size > currIdx + 1) {
+                currentQueue.drop(currIdx + 1).take(3)
+            } else {
+                pool.filter { it.mediaId != currentItem.mediaId }.take(3)
+            }
+
+            triggerImmediateIntervention(
+                currentSong = currentItem,
+                upcomingSongs = upcoming
+            )
+        }
+    }
+
+    /**
      * Triggered when a new song transition occurs in the player.
      * Checks if this song represents the beginning of a new DJ block.
      */
@@ -89,8 +155,20 @@ class DjEngine(
             return
         }
 
+        if (_currentBlocks.value.isEmpty()) {
+            playerProvider()?.let { player ->
+                val count = player.mediaItemCount
+                val queue = mutableListOf<MediaItem>()
+                for (i in 0 until count) {
+                    queue.add(player.getMediaItemAt(i))
+                }
+                if (queue.isNotEmpty()) {
+                    setupQueue(queue)
+                }
+            }
+        }
+
         val blocks = _currentBlocks.value
-        val currentIndex = _activeBlockIndex.value
         if (blocks.isEmpty()) return
 
         // Find which block contains this song
@@ -116,7 +194,12 @@ class DjEngine(
     fun triggerImmediateIntervention(currentSong: MediaItem?, upcomingSongs: List<MediaItem>) {
         scope.launch {
             val songInfoList = upcomingSongs.take(3).map { it.toDjSongInfo() }
-            val theme = if (currentSong != null) "este momento especial" else "nuestra programación"
+            val theme = if (currentSong != null) {
+                val currentInfo = currentSong.toDjSongInfo()
+                currentInfo.genre ?: currentInfo.artist
+            } else {
+                "nuestra selección musical"
+            }
             executeIntervention(
                 theme = theme,
                 upcomingSongs = songInfoList,
@@ -125,7 +208,10 @@ class DjEngine(
         }
     }
 
-    private fun triggerInterventionForBlock(block: DjBlock, previousSong: DjSongInfo?) {
+    /**
+     * Public method to trigger speech for a specific block.
+     */
+    fun triggerInterventionForBlock(block: DjBlock, previousSong: DjSongInfo? = null) {
         scope.launch {
             val upcomingInfos = block.songs.map { it.toDjSongInfo() }
             executeIntervention(
@@ -133,6 +219,26 @@ class DjEngine(
                 upcomingSongs = upcomingInfos,
                 previousSong = previousSong
             )
+        }
+    }
+
+    /**
+     * Test Livi's voice directly with speech ducking.
+     */
+    fun testVoice(sampleText: String = "¡Hola! Soy Livi, tu DJ personal. ¡Todo listo para arrancar con la mejor música!") {
+        scope.launch {
+            _lastSpeechScript.value = sampleText
+            Log.i(TAG, "Testing DJ voice: $sampleText")
+            val audioFile = ttsEngine.synthesizeToWavFile(sampleText)
+            withContext(Dispatchers.Main) {
+                duckingCoordinator.playInterventionWithDucking(
+                    audioFile = audioFile,
+                    fallbackText = sampleText
+                ) {
+                    Log.i(TAG, "DJ test voice playback completed.")
+                    audioFile?.let { try { it.delete() } catch (ignored: Exception) {} }
+                }
+            }
         }
     }
 
@@ -151,19 +257,18 @@ class DjEngine(
             _lastSpeechScript.value = script
             Log.i(TAG, "Generated DJ Script: $script")
 
-            // 2. Synthesize Audio via Kokoro TTS
+            // 2. Synthesize Audio via Kokoro TTS (or null if weights missing)
             val audioFile = ttsEngine.synthesizeToWavFile(script)
-            if (audioFile != null && audioFile.exists()) {
-                withContext(Dispatchers.Main) {
-                    // 3. Duck audio and play speech
-                    duckingCoordinator.playInterventionWithDucking(audioFile) {
-                        Log.i(TAG, "DJ intervention completed successfully.")
-                        // Clean up temporary audio file after play
-                        try { audioFile.delete() } catch (ignored: Exception) {}
-                    }
+
+            // 3. Duck audio and play speech (Kokoro WAV or native TTS fallback)
+            withContext(Dispatchers.Main) {
+                duckingCoordinator.playInterventionWithDucking(
+                    audioFile = audioFile,
+                    fallbackText = script
+                ) {
+                    Log.i(TAG, "DJ intervention completed successfully.")
+                    audioFile?.let { try { it.delete() } catch (ignored: Exception) {} }
                 }
-            } else {
-                Log.w(TAG, "TTS audio synthesis returned null, skipping voice intervention.")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error executing DJ intervention", e)
