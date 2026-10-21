@@ -1313,7 +1313,12 @@ supporting local search. This string is displayed in the search bar when using G
     <string name="settings_dj_deepseek_key_title">API Key (OpenCode / DeepSeek)</string>
     <string name="settings_dj_deepseek_key_summary">Supports OpenCode Zen (oc_sk_...) or direct DeepSeek (sk-...)</string>
     <string name="settings_dj_model_title">LLM Model</string>
-    <string name="settings_dj_model_summary">Default: deepseek-v4.1-flash (OpenCode) or deepseek-chat</string>
+    <string name="settings_dj_model_summary">Select or fetch models from API (OpenCode / DeepSeek)</string>
+    <string name="settings_dj_model_custom_title">Custom Model Identifier</string>
+    <string name="settings_dj_model_custom_summary">Enter custom model name (e.g. gpt-4o-mini, llama-3.3-70b)</string>
+    <string name="settings_dj_model_custom_option">Personalizado / Otro modelo…</string>
+    <string name="settings_dj_fetch_models_title">Update Models from API</string>
+    <string name="settings_dj_fetch_models_summary">Fetch live list of available models from OpenCode / DeepSeek</string>
     <string name="settings_dj_endpoint_title">Custom API Endpoint</string>
     <string name="settings_dj_endpoint_summary">Leave empty for auto-detection based on API key</string>
     <string name="settings_dj_test_speech_title">Test DJ Voice</string>

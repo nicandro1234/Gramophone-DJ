@@ -14,11 +14,27 @@
         android:summary="@string/settings_dj_deepseek_key_summary"
         android:title="@string/settings_dj_deepseek_key_title" />
 
-    <EditTextPreference
+    <ListPreference
+        android:defaultValue="deepseek-v4.1-flash"
         android:dialogTitle="@string/settings_dj_model_title"
+        android:entries="@array/dj_default_model_entries"
+        android:entryValues="@array/dj_default_model_values"
         android:key="dj_api_model"
         android:summary="@string/settings_dj_model_summary"
-        android:title="@string/settings_dj_model_title" />
+        android:title="@string/settings_dj_model_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:dialogTitle="@string/settings_dj_model_custom_title"
+        android:key="dj_api_model_custom"
+        android:summary="@string/settings_dj_model_custom_summary"
+        android:title="@string/settings_dj_model_custom_title"
+        app:isPreferenceVisible="false" />
+
+    <Preference
+        android:key="dj_fetch_models"
+        android:summary="@string/settings_dj_fetch_models_summary"
+        android:title="@string/settings_dj_fetch_models_title" />
 
     <EditTextPreference
         android:dialogTitle="@string/settings_dj_endpoint_title"

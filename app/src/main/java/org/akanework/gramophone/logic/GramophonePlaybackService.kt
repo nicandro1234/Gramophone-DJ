@@ -585,7 +585,14 @@ class GramophonePlaybackService : MediaLibraryService(), MediaSessionService.Lis
             playerProvider = { endedWorkaroundPlayer?.exoPlayer },
             apiKeyProvider = { prefs.getString("deepseek_api_key", null) },
             endpointProvider = { prefs.getString("dj_api_endpoint", null) },
-            modelProvider = { prefs.getString("dj_api_model", null) }
+            modelProvider = {
+                val selectedModel = prefs.getString("dj_api_model", null)
+                if (selectedModel == "custom") {
+                    prefs.getString("dj_api_model_custom", null)
+                } else {
+                    selectedModel
+                }
+            }
         )
         djEngine?.setDjModeEnabled(prefs.getBoolean("dj_mode_enabled", false))
         controller = MediaBrowser.Builder(this, mediaSession!!.token).buildAsync().get()

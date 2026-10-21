@@ -31,6 +31,79 @@ class DjScriptGenerator(
             "Tenés una personalidad cálida, fresca, apasionada por la música, con acento rioplatense natural (usando voseo: 'te traigo', 'escuchá', 'vamos con'). " +
             "Tu misión es presentar el siguiente bloque musical en 1 a 2 oraciones muy cortas (máximo 25 a 35 palabras en total). " +
             "No uses emojis, hashtags ni acotaciones entre paréntesis como (música de fondo). Solo el texto exacto que vas a hablar al micrófono."
+
+        suspend fun fetchModels(
+            apiKey: String?,
+            customEndpoint: String? = null
+        ): Result<List<String>> = withContext(Dispatchers.IO) {
+            if (apiKey.isNullOrBlank()) {
+                return@withContext Result.failure(IllegalArgumentException("API Key no configurada"))
+            }
+
+            val isOpenCode = apiKey.startsWith("oc_sk_") || apiKey.contains("opencode")
+            val url = if (!customEndpoint.isNullOrBlank()) {
+                val trimmed = customEndpoint.trim()
+                if (trimmed.endsWith("/chat/completions")) {
+                    trimmed.replace("/chat/completions", "/models")
+                } else if (trimmed.endsWith("/")) {
+                    "${trimmed}models"
+                } else {
+                    "$trimmed/models"
+                }
+            } else {
+                if (isOpenCode) "https://opencode.ai/zen/go/v1/models" else "https://api.deepseek.com/models"
+            }
+
+            try {
+                val client = OkHttpClient.Builder()
+                    .connectTimeout(10, TimeUnit.SECONDS)
+                    .readTimeout(15, TimeUnit.SECONDS)
+                    .build()
+
+                val requestBuilder = Request.Builder()
+                    .url(url)
+                    .get()
+                    .addHeader("Authorization", "Bearer $apiKey")
+
+                if (isOpenCode) {
+                    requestBuilder.addHeader("x-opencode-session", "gramophone-dj-livi")
+                }
+
+                val response = client.newCall(requestBuilder.build()).execute()
+                if (!response.isSuccessful) {
+                    val err = response.body?.string() ?: ""
+                    return@withContext Result.failure(
+                        IllegalStateException("Error ${response.code}: $err")
+                    )
+                }
+
+                val bodyStr = response.body?.string() ?: return@withContext Result.failure(
+                    IllegalStateException("Respuesta vacía del servidor")
+                )
+                val json = JSONObject(bodyStr)
+                val dataArray = json.optJSONArray("data") ?: json.optJSONArray("models")
+                val modelList = mutableListOf<String>()
+
+                if (dataArray != null) {
+                    for (i in 0 until dataArray.length()) {
+                        val itemObj = dataArray.optJSONObject(i)
+                        val id = itemObj?.optString("id")?.takeIf { it.isNotBlank() }
+                            ?: dataArray.optString(i).takeIf { it.isNotBlank() }
+                        if (id != null && !modelList.contains(id)) {
+                            modelList.add(id)
+                        }
+                    }
+                }
+
+                if (modelList.isEmpty()) {
+                    return@withContext Result.failure(IllegalStateException("No se encontraron modelos en la respuesta"))
+                }
+
+                Result.success(modelList)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
     }
 
     private val httpClient = OkHttpClient.Builder()
@@ -53,8 +126,12 @@ class DjScriptGenerator(
         val endpoint = endpointProvider()?.takeIf { it.isNotBlank() }
             ?: if (isOpenCode) OPENCODE_BASE_URL else DIRECT_DEEPSEEK_URL
 
-        val model = modelProvider()?.takeIf { it.isNotBlank() }
-            ?: if (isOpenCode) DEFAULT_OPENCODE_MODEL else DEFAULT_DEEPSEEK_MODEL
+        val rawModel = modelProvider()?.takeIf { it.isNotBlank() }
+        val model = if (rawModel.isNullOrBlank() || rawModel == "custom") {
+            if (isOpenCode) DEFAULT_OPENCODE_MODEL else DEFAULT_DEEPSEEK_MODEL
+        } else {
+            rawModel
+        }
 
         try {
             val userPrompt = buildUserPrompt(upcomingSongs, blockTheme, previousSong)
