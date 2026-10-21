@@ -153,13 +153,13 @@ class DjScriptGenerator(
                     })
                 })
                 put("temperature", 0.7)
-                put("max_tokens", 80)
+                put("max_tokens", 350)
             }
 
             val body = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
             val requestBuilder = Request.Builder()
                 .url(endpoint)
-                .addHeader("Authorization", "Bearer $apiKey")
+                .addHeader("Authorization", "Bearer ${apiKey.trim()}")
                 .addHeader("Content-Type", "application/json")
 
             if (isOpenCode) {
@@ -177,13 +177,29 @@ class DjScriptGenerator(
             }
 
             val responseBody = response.body?.string() ?: return@withContext generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong)
+            Log.d(TAG, "LLM raw response: $responseBody")
             val jsonResponse = JSONObject(responseBody)
-            val choices = jsonResponse.getJSONArray("choices")
-            if (choices.length() > 0) {
-                val script = choices.getJSONObject(0).getJSONObject("message").getString("content").trim()
-                Log.i(TAG, "Generated script: $script")
-                return@withContext sanitizeScript(script)
+            val choices = jsonResponse.optJSONArray("choices")
+            if (choices != null && choices.length() > 0) {
+                val choice = choices.getJSONObject(0)
+                val msg = choice.optJSONObject("message")
+                var raw = msg?.optString("content")?.trim()
+                if (raw.isNullOrBlank()) {
+                    raw = msg?.optString("reasoning_content")?.trim()
+                }
+                if (raw.isNullOrBlank()) {
+                    raw = choice.optString("text").trim()
+                }
+
+                if (!raw.isNullOrBlank()) {
+                    val clean = sanitizeScript(raw)
+                    if (clean.isNotBlank()) {
+                        Log.i(TAG, "Generated and sanitized script: $clean")
+                        return@withContext clean
+                    }
+                }
             }
+            Log.w(TAG, "LLM returned empty or whitespace script, falling back to local generator.")
         } catch (e: Exception) {
             Log.w(TAG, "Exception calling LLM endpoint ($endpoint), falling back to local script", e)
         }
