@@ -1567,6 +1567,11 @@ class GramophonePlaybackService : MediaLibraryService(), MediaSessionService.Lis
     }
 
     override fun onPlaybackStateChanged(state: Int) {
+        if ((state == Player.STATE_READY || state == Player.STATE_BUFFERING) &&
+            djEngine?.duckingCoordinator?.isSpeaking?.value == true
+        ) {
+            endedWorkaroundPlayer?.exoPlayer?.volume = djEngine!!.duckingCoordinator.getDuckingVolume()
+        }
         if (state == Player.STATE_IDLE) {
             var changed = false
             if (afTrackFormat != null) {
@@ -1619,6 +1624,9 @@ class GramophonePlaybackService : MediaLibraryService(), MediaSessionService.Lis
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
         djEngine?.onSongTransition(mediaItem)
+        if (djEngine?.duckingCoordinator?.isSpeaking?.value == true) {
+            endedWorkaroundPlayer?.exoPlayer?.volume = djEngine!!.duckingCoordinator.getDuckingVolume()
+        }
         if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
             bitrate = null
             bitrateFetcher.launch {

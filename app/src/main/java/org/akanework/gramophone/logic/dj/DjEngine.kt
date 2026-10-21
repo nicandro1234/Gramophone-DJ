@@ -68,6 +68,7 @@ class DjEngine(
     val lastSpeechScript: StateFlow<String?> = _lastSpeechScript.asStateFlow()
 
     private var previousSongInfo: DjSongInfo? = null
+    private var lastIntervenedSongId: String? = null
 
     fun setDjModeEnabled(enabled: Boolean) {
         _isDjModeEnabled.value = enabled
@@ -97,7 +98,10 @@ class DjEngine(
             return
         }
 
-        // Always generate a fresh, dynamically randomized cluster of blocks
+        // 1. Pre-duck volume immediately so playback starts attenuated
+        duckingCoordinator.prepareForIntervention()
+
+        // 2. Always generate a fresh, dynamically randomized cluster of blocks
         val blocks = clusterer.clusterTracks(songs)
         _currentBlocks.value = blocks
         _activeBlockIndex.value = 0
@@ -117,6 +121,8 @@ class DjEngine(
         controller?.play()
 
         blocks.firstOrNull()?.let { firstBlock ->
+            val firstSongId = firstBlock.songs.firstOrNull()?.mediaId
+            lastIntervenedSongId = firstSongId
             triggerInterventionForBlock(firstBlock, previousSong = null)
         }
     }
@@ -154,9 +160,11 @@ class DjEngine(
 
         if (targetBlockIndex != -1) {
             val block = blocks[targetBlockIndex]
-            // If this song is the FIRST song of the block, trigger DJ speech!
-            if (block.songs.firstOrNull()?.mediaId == currentMediaItem.mediaId) {
+            val firstSongId = block.songs.firstOrNull()?.mediaId
+            // If this song is the FIRST song of the block (and hasn't been intervened yet), trigger DJ speech!
+            if (firstSongId == currentMediaItem.mediaId && firstSongId != lastIntervenedSongId) {
                 _activeBlockIndex.value = targetBlockIndex
+                lastIntervenedSongId = firstSongId
                 triggerInterventionForBlock(block, previousSongInfo)
             }
         }

@@ -45,6 +45,7 @@ class DjDuckingCoordinator(
 
     private var systemTts: TextToSpeech? = null
     private var isSystemTtsReady = false
+    private var activeUtteranceId: String? = null
 
     private val _duckingState = MutableStateFlow(DjDuckingState.IDLE)
     val duckingState: StateFlow<DjDuckingState> = _duckingState.asStateFlow()
@@ -188,10 +189,19 @@ class DjDuckingCoordinator(
         }
     }
 
-    private fun getDuckingVolume(): Float {
+    fun getDuckingVolume(): Float {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         val levelStr = prefs.getString("dj_ducking_level", "0.07")
         return levelStr?.toFloatOrNull() ?: DEFAULT_DUCKED_VOLUME
+    }
+
+    fun prepareForIntervention() {
+        val player = getActivePlayer()
+        val targetVol = getDuckingVolume()
+        _duckingState.value = DjDuckingState.DUCKING_ACTIVE
+        _isSpeaking.value = true
+        applyVolumeToPlayer(player, targetVol)
+        Log.i(TAG, "prepareForIntervention: Ducked volume pre-emptively to $targetVol")
     }
 
     private fun requestTransientDuckingFocus(): Boolean {
@@ -255,41 +265,21 @@ class DjDuckingCoordinator(
         }
 
         val player = getActivePlayer()
-        val isPlaybackActive = player != null && (
-            player.isPlaying ||
-            player.playWhenReady ||
-            player.playbackState == Player.STATE_BUFFERING ||
-            player.playbackState == Player.STATE_READY
-        )
 
         // Request system-level audio ducking focus so Android OS attenuates music automatically
         requestTransientDuckingFocus()
 
-        if (!isPlaybackActive) {
-            Log.i(TAG, "Playback not currently active, speaking directly with focus.")
-            val directDoneAction: () -> Unit = {
-                abandonTransientDuckingFocus()
-                onComplete?.invoke()
-            }
-            if (hasAudio) {
-                playSpeechAudio(audioFile, directDoneAction)
-            } else {
-                playFallbackSystemSpeech(fallbackText!!, directDoneAction)
-            }
-            return
-        }
-
-        // 1. Duck player volume smoothly and aggressively
+        // Always duck the player (even if idle or buffering, so upcoming playback starts ducked)
         duckPlayer(player) {
             val finishAction: () -> Unit = {
-                // 3. Restore player volume smoothly and release focus
+                // Restore player volume smoothly and release focus
                 restorePlayer(player) {
                     abandonTransientDuckingFocus()
                     onComplete?.invoke()
                 }
             }
 
-            // 2. Play speech audio (Kokoro WAV or native TTS fallback)
+            // Play speech audio (Kokoro WAV or native TTS fallback)
             if (hasAudio) {
                 playSpeechAudio(audioFile, finishAction)
             } else {
@@ -300,10 +290,17 @@ class DjDuckingCoordinator(
 
     private fun duckPlayer(player: Player?, onDucked: () -> Unit) {
         _duckingState.value = DjDuckingState.DUCKING_ACTIVE
+        _isSpeaking.value = true
         volumeAnimator?.cancel()
 
         val targetVol = getDuckingVolume()
         val startVol = player?.volume ?: NORMAL_VOLUME
+
+        if (Math.abs(startVol - targetVol) < 0.01f) {
+            applyVolumeToPlayer(player, targetVol)
+            onDucked()
+            return
+        }
 
         volumeAnimator = ValueAnimator.ofFloat(startVol, targetVol).apply {
             duration = RAMP_DURATION_MS
@@ -343,15 +340,20 @@ class DjDuckingCoordinator(
         }, RAMP_DURATION_MS)
     }
 
-    private fun applyVolumeToPlayer(player: Player?, volume: Float) {
-        try {
-            player?.volume = volume
-        } catch (_: Exception) {}
-
+    fun applyVolumeToPlayer(player: Player?, volume: Float) {
         try {
             val service = GramophonePlaybackService.instanceForWidgetAndLyricsOnly
+            val exo = service?.endedWorkaroundPlayer?.exoPlayer ?: (playerProvider() as? ExoPlayer)
+            exo?.volume = volume
             service?.endedWorkaroundPlayer?.volume = volume
-            service?.endedWorkaroundPlayer?.exoPlayer?.volume = volume
+        } catch (e: Exception) {
+            Log.w(TAG, "Error applying volume to exo player", e)
+        }
+
+        try {
+            if (player !is ExoPlayer && player != null) {
+                player.volume = volume
+            }
         } catch (_: Exception) {}
     }
 
@@ -405,9 +407,10 @@ class DjDuckingCoordinator(
         applyBestVoice(tts)
 
         val utteranceId = "dj_livi_${System.currentTimeMillis()}"
+        activeUtteranceId = utteranceId
         var finishDispatched = false
         val safeFinish: () -> Unit = {
-            if (!finishDispatched) {
+            if (!finishDispatched && activeUtteranceId == utteranceId) {
                 finishDispatched = true
                 _isSpeaking.value = false
                 mainHandler.post { onFinished() }
@@ -464,10 +467,12 @@ class DjDuckingCoordinator(
 
     fun cancelSpeechAndRestore() {
         releaseSpeechPlayer()
+        activeUtteranceId = null
         try {
             systemTts?.stop()
         } catch (ignored: Exception) {}
         _isSpeaking.value = false
+        _duckingState.value = DjDuckingState.IDLE
         abandonTransientDuckingFocus()
         applyVolumeToPlayer(getActivePlayer(), NORMAL_VOLUME)
     }
