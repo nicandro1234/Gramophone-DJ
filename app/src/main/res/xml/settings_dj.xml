@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <SwitchPreferenceCompat
+        android:defaultValue="false"
+        android:key="dj_mode_enabled"
+        android:summary="@string/settings_dj_enable_summary"
+        android:title="@string/settings_dj_enable_title" />
+
+    <EditTextPreference
+        android:dialogTitle="@string/settings_dj_deepseek_key_title"
+        android:key="deepseek_api_key"
+        android:summary="@string/settings_dj_deepseek_key_summary"
+        android:title="@string/settings_dj_deepseek_key_title" />
+
+    <Preference
+        android:key="dj_test_speech"
+        android:summary="@string/settings_dj_test_speech_summary"
+        android:title="@string/settings_dj_test_speech_title" />
+
+</PreferenceScreen>

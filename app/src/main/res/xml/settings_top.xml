@@ -63,6 +63,13 @@
         android:title="@string/settings_player_options" />
 
     <Preference
+        android:icon="@drawable/ic_dj_mic"
+        android:key="dj_livi"
+        android:layout="@layout/preference_basic"
+        android:summary="@string/settings_dj_summary"
+        android:title="@string/settings_dj_title" />
+
+    <Preference
         android:icon="@drawable/ic_experiment"
         android:key="experimental"
         android:layout="@layout/preference_basic"

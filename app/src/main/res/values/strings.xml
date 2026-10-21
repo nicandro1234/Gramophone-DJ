@@ -1305,4 +1305,14 @@ supporting local search. This string is displayed in the search bar when using G
     <string name="loading_playlists">Loading playlists...</string>
     <!-- Option to enable reordering mode for items in a list -->
     <string name="edit_mode">Enter edit mode</string>
+    <!-- DJ Local Livi Settings -->
+    <string name="settings_dj_title">DJ Local Livi</string>
+    <string name="settings_dj_summary">AI radio DJ with smart speech commentary and audio ducking</string>
+    <string name="settings_dj_enable_title">Enable DJ Livi</string>
+    <string name="settings_dj_enable_summary">Intervene with radio speech announcements before song blocks</string>
+    <string name="settings_dj_deepseek_key_title">DeepSeek API Key</string>
+    <string name="settings_dj_deepseek_key_summary">Used for generating dynamic DJ scripts (leave empty for offline mode)</string>
+    <string name="settings_dj_test_speech_title">Test DJ Voice</string>
+    <string name="settings_dj_test_speech_summary">Synthesize a test radio introduction using Kokoro TTS</string>
+    <string name="settings_dj_status_ready">DJ Engine is ready</string>
 </resources>

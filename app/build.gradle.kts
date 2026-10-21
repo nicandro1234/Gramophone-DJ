@@ -306,6 +306,8 @@ aboutLibraries {
 }
 
 dependencies {
+    implementation(files("libs/sherpa-onnx.aar"))
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation(project(":hificore"))
     implementation(project(":misc:alacdecoder"))
     val composeBom = platform("androidx.compose:compose-bom:2025.05.00")

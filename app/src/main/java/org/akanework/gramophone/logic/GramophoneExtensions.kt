@@ -845,3 +845,17 @@ fun getSystemProperty(key: String): String? {
         null
     }
 }
+fun androidx.media3.session.MediaController.setDjEnabled(enabled: Boolean) {
+    sendCustomCommand(
+        androidx.media3.session.SessionCommand(GramophonePlaybackService.SERVICE_SET_DJ_ENABLED, android.os.Bundle.EMPTY).apply {
+            customExtras.putBoolean("enabled", enabled)
+        }, android.os.Bundle.EMPTY
+    )
+}
+
+fun androidx.media3.session.MediaController.triggerDjIntervention() {
+    sendCustomCommand(
+        androidx.media3.session.SessionCommand(GramophonePlaybackService.SERVICE_DJ_INTERVENE, android.os.Bundle.EMPTY),
+        android.os.Bundle.EMPTY
+    )
+}

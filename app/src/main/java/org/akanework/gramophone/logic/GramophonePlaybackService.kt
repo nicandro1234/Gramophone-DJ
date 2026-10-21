@@ -155,6 +155,7 @@ import kotlin.collections.emptyList
 import kotlin.collections.map
 import kotlin.collections.plus
 import kotlin.random.Random
+import org.akanework.gramophone.logic.dj.DjEngine
 
 
 /**
@@ -193,10 +194,13 @@ class GramophonePlaybackService : MediaLibraryService(), MediaSessionService.Lis
         const val SERVICE_QB_RENAME_QUEUE = "qb_rename"
 
         const val SERVICE_QB_AGE = "qb_age"
+        const val SERVICE_SET_DJ_ENABLED = "set_dj_enabled"
+        const val SERVICE_DJ_INTERVENE = "dj_intervene"
 
         var instanceForWidgetAndLyricsOnly: GramophonePlaybackService? = null
     }
 
+    var djEngine: DjEngine? = null
     private var lastSessionId = 0
     private val internalPlaybackThread =
         HandlerThread("ExoPlayer:Playback", Process.THREAD_PRIORITY_AUDIO)
@@ -576,6 +580,12 @@ class GramophonePlaybackService : MediaLibraryService(), MediaSessionService.Lis
                 .setPeriodicPositionUpdateEnabled(false)
                 .build()
         addSession(mediaSession!!)
+        djEngine = DjEngine.getInstance(
+            context = this,
+            playerProvider = { endedWorkaroundPlayer?.exoPlayer },
+            apiKeyProvider = { prefs.getString("deepseek_api_key", null) }
+        )
+        djEngine?.setDjModeEnabled(prefs.getBoolean("dj_mode_enabled", false))
         controller = MediaBrowser.Builder(this, mediaSession!!.token).buildAsync().get()
         controller!!.addListener(this)
         if (controller!!.audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
@@ -830,6 +840,8 @@ class GramophonePlaybackService : MediaLibraryService(), MediaSessionService.Lis
         }
         controller!!.release()
         controller = null
+        djEngine?.release()
+        djEngine = null
         mediaSession!!.release()
         endedWorkaroundPlayer!!.release()
         mediaSession = null
@@ -887,6 +899,8 @@ class GramophonePlaybackService : MediaLibraryService(), MediaSessionService.Lis
         availableSessionCommands.add(SessionCommand(SERVICE_QB_UNPIN_QUEUE, Bundle.EMPTY))
         availableSessionCommands.add(SessionCommand(SERVICE_QB_RENAME_QUEUE, Bundle.EMPTY))
         availableSessionCommands.add(SessionCommand(SERVICE_QB_AGE, Bundle.EMPTY))
+        availableSessionCommands.add(SessionCommand(SERVICE_SET_DJ_ENABLED, Bundle.EMPTY))
+        availableSessionCommands.add(SessionCommand(SERVICE_DJ_INTERVENE, Bundle.EMPTY))
         return builder.setAvailableSessionCommands(availableSessionCommands.build()).build()
     }
 
@@ -1030,6 +1044,7 @@ class GramophonePlaybackService : MediaLibraryService(), MediaSessionService.Lis
                             newShuffleOrder = null, ended = false, repeatMode = repeatMode,
                             shuffleModeEnabled = shuffleModeEnabled, playbackParameters = null)
                     }
+                    djEngine?.setupQueue(songList)
                     SessionResult(SessionResult.RESULT_SUCCESS)
                 },
                 mainExecutor
@@ -1317,6 +1332,24 @@ class GramophonePlaybackService : MediaLibraryService(), MediaSessionService.Lis
                     SessionResult(SessionResult.RESULT_SUCCESS)
                 }
 
+                SERVICE_SET_DJ_ENABLED -> {
+                    val enabled = customCommand.customExtras.getBoolean("enabled", false)
+                    djEngine?.setDjModeEnabled(enabled)
+                    SessionResult(SessionResult.RESULT_SUCCESS)
+                }
+
+                SERVICE_DJ_INTERVENE -> {
+                    val current = endedWorkaroundPlayer?.currentMediaItem
+                    val upcoming = mutableListOf<MediaItem>()
+                    val count = endedWorkaroundPlayer?.mediaItemCount ?: 0
+                    val currentIdx = endedWorkaroundPlayer?.currentMediaItemIndex ?: 0
+                    for (i in (currentIdx + 1) until minOf(currentIdx + 5, count)) {
+                        endedWorkaroundPlayer?.getMediaItemAt(i)?.let { upcoming.add(it) }
+                    }
+                    djEngine?.triggerImmediateIntervention(current, upcoming)
+                    SessionResult(SessionResult.RESULT_SUCCESS)
+                }
+
                 else -> {
                     SessionResult(SessionError.ERROR_BAD_VALUE)
                 }
@@ -1574,6 +1607,7 @@ class GramophonePlaybackService : MediaLibraryService(), MediaSessionService.Lis
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+        djEngine?.onSongTransition(mediaItem)
         if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
             bitrate = null
             bitrateFetcher.launch {

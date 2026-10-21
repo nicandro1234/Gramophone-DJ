@@ -54,6 +54,10 @@ class MainSettingsFragment : BasePreferenceFragment() {
                 startActivity(AudioSettingsActivity::class.java)
             }
 
+            "dj_livi" -> {
+                startActivity(DjSettingsActivity::class.java)
+            }
+
             "experimental" -> {
                 startActivity(ExperimentalSettingsActivity::class.java)
             }
