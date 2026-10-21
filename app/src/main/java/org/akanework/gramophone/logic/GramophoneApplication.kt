@@ -135,7 +135,8 @@ class GramophoneApplication : Application(), SingletonImageLoader.Factory,
                         else it
                     }
                     .penaltyLog()
-                    .penaltyDialog()
+                    .permitDiskReads()
+                    .permitDiskWrites()
                     .build()
             )
             StrictMode.setVmPolicy(
@@ -163,7 +164,7 @@ class GramophoneApplication : Application(), SingletonImageLoader.Factory,
                 //.detectTargetFragmentUsage() TODO onDisplayPreferenceDialog()
                 .detectWrongFragmentContainer()
                 .detectWrongNestedHierarchy()
-                .penaltyDeath()
+                .penaltyLog()
                 .build()
         }
         android.util.Log.d(TAG, "GramophoneApplication.onCreate()")

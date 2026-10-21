@@ -19,6 +19,7 @@ import org.akanework.gramophone.logic.dj.DjScriptGenerator
 import org.akanework.gramophone.ui.fragments.BasePreferenceFragment
 import org.akanework.gramophone.ui.fragments.BaseSettingsActivity
 import org.json.JSONArray
+import org.akanework.gramophone.logic.allowDiskAccessInStrictMode
 
 class DjSettingsActivity : BaseSettingsActivity(
     R.string.settings_dj_title,
@@ -29,7 +30,8 @@ class DjSettingsFragment : BasePreferenceFragment() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.settings_dj, rootKey)
 
-        val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
+        allowDiskAccessInStrictMode {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
         val apiKeyPref = findPreference<EditTextPreference>("deepseek_api_key")
         val modelPref = findPreference<ListPreference>("dj_api_model")
         val customModelPref = findPreference<EditTextPreference>("dj_api_model_custom")
@@ -69,9 +71,10 @@ class DjSettingsFragment : BasePreferenceFragment() {
         }
 
         findPreference<SwitchPreferenceCompat>("dj_mode_enabled")?.setOnPreferenceChangeListener { _, newValue ->
-            val enabled = newValue as Boolean
-            GramophonePlaybackService.instanceForWidgetAndLyricsOnly?.djEngine?.setDjModeEnabled(enabled)
-            true
+                val enabled = newValue as Boolean
+                GramophonePlaybackService.instanceForWidgetAndLyricsOnly?.djEngine?.setDjModeEnabled(enabled)
+                true
+            }
         }
     }
 
