@@ -1623,7 +1623,7 @@ class GramophonePlaybackService : MediaLibraryService(), MediaSessionService.Lis
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-        djEngine?.onSongTransition(mediaItem)
+        djEngine?.onSongTransition(mediaItem, reason)
         if (djEngine?.duckingCoordinator?.isSpeaking?.value == true) {
             endedWorkaroundPlayer?.exoPlayer?.volume = djEngine!!.duckingCoordinator.getDuckingVolume()
         }

@@ -5,7 +5,13 @@ import java.util.UUID
 
 class DjBlockClusterer {
 
-    fun clusterTracks(songs: List<MediaItem>, blockSize: Int = 3): List<DjBlock> {
+    companion object {
+        const val DEFAULT_BLOCK_SIZE = 3
+    }
+
+    val blockSize: Int = DEFAULT_BLOCK_SIZE
+
+    fun clusterTracks(songs: List<MediaItem>, blockSize: Int = DEFAULT_BLOCK_SIZE): List<DjBlock> {
         if (songs.isEmpty()) return emptyList()
 
         val blocks = mutableListOf<DjBlock>()
