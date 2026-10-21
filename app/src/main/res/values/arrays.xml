@@ -48,27 +48,4 @@
         <item>@string/actions_query_start_random_music</item>
         <item>@string/actions_query_start_random_songs</item>
     </string-array>
-    <string-array name="dj_default_model_entries" translatable="false">
-        <item>deepseek-v4.1-flash (Recomendado OpenCode)</item>
-        <item>deepseek-v4-pro</item>
-        <item>glm-5.3-flash</item>
-        <item>qwen3.8-flash</item>
-        <item>mimo-v2.6-flash</item>
-        <item>minimax-m3.1-flash-free</item>
-        <item>deepseek-chat (DeepSeek oficial)</item>
-        <item>deepseek-reasoner (DeepSeek R1)</item>
-        <item>@string/settings_dj_model_custom_option</item>
-    </string-array>
-
-    <string-array name="dj_default_model_values" translatable="false">
-        <item>deepseek-v4.1-flash</item>
-        <item>deepseek-v4-pro</item>
-        <item>glm-5.3-flash</item>
-        <item>qwen3.8-flash</item>
-        <item>mimo-v2.6-flash</item>
-        <item>minimax-m3.1-flash-free</item>
-        <item>deepseek-chat</item>
-        <item>deepseek-reasoner</item>
-        <item>custom</item>
-    </string-array>
 </resources>
