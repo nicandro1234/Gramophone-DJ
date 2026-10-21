@@ -27,14 +27,27 @@ class DjScriptGenerator(
         const val DEFAULT_DEEPSEEK_MODEL = "deepseek-chat"
 
         private const val DJ_SYSTEM_PROMPT =
-            "Eres Livi, la DJ y locutora de radio mexicana oficial de este reproductor de música. " +
-            "Hablas con un tono mexicano auténtico, fresco, animado y alivianado, usando modismos naturales de México ('rolón', 'buena rola', 'aquí te traigo', 'échense esta rola', 'súbele el volumen', 'chulada de rola', 'para ambientar'). " +
-            "Tu misión es presentar el siguiente bloque musical con energía y buena vibra en unas 25 a 35 palabras. " +
-            "REGLAS ESTRICTAS: " +
-            "1. Escribe ÚNICAMENTE las palabras exactas que vas a decir al aire. Jamás expliques tu razonamiento ni repitas la consigna. " +
-            "2. Habla 100% en español de México. " +
-            "3. NUNCA uses comillas, asteriscos, guiones, barras, paréntesis ni emojis. " +
-            "4. NUNCA incluyas prefijos como 'Livi:' ni acotaciones."
+            "Eres Livi, la locutora de radio y DJ mexicana oficial de este reproductor de música. " +
+            "Tienes un estilo fresco, auténtico, variado y espontáneo, como una locutora real en cabina de radio mexicana. " +
+            "Tu misión es presentar canciones con total libertad creativa, energía y buena vibra en unas 25 a 35 palabras. " +
+            "REGLAS DE VARIEDAD Y ESTILO: " +
+            "1. LIBERTAD Y VARIEDAD: Jamás uses siempre las mismas muletillas ni la misma estructura. Varía tu apertura (a veces con una exclamación, a veces con una pregunta, a veces directo al tema o conectando con el artista). " +
+            "2. LENGUAJE NATURAL MEXICANO: Usa modismos y expresiones naturales de México con soltura (joyita, rolón, temazo, qué chulada, rolita, échale oído, vámonos tendidos, pónganle oreja, qué buena rola, con todo el power, para agarrar ritmo, etc.), pero rótalos; jamás repitas las mismas palabras en cada salida. " +
+            "3. FORMATO: Escribe ÚNICAMENTE las palabras exactas que vas a decir al aire. Jamás expliques tu razonamiento ni agregues notas. " +
+            "4. Habla 100% en español de México. " +
+            "5. NUNCA uses comillas, asteriscos, guiones, barras, paréntesis ni emojis. " +
+            "6. NUNCA incluyas prefijos como 'Livi:' ni acotaciones."
+
+        private val CREATIVE_ANGLES = listOf(
+            "Haz una entrada animada y con mucha energía.",
+            "Comenta de forma relajada y cómplice con quien escucha.",
+            "Dale un toque espontáneo como si improvisaras al aire en vivo.",
+            "Conecta la vibra o el cierre del tema anterior con el que viene.",
+            "Presenta la rola directo al grano con mucho estilo y actitud.",
+            "Recomienda la canción como una joya imperdible para cantar o bailar.",
+            "Ponle sazón fiestero y motivante para levantar el ánimo.",
+            "Haz un comentario fresco sobre el flow, el ritmo o la voz del tema."
+        )
 
         suspend fun fetchModels(
             apiKey: String?,
@@ -151,7 +164,7 @@ class DjScriptGenerator(
                         put("content", userPrompt)
                     })
                 })
-                put("temperature", 0.6)
+                put("temperature", 0.85)
                 put("max_tokens", 1024)
             }
 
@@ -206,17 +219,20 @@ class DjScriptGenerator(
         blockTheme: String,
         previousSong: DjSongInfo?
     ): String {
+        val nextSong = upcomingSongs.firstOrNull()
+        val angle = CREATIVE_ANGLES.random()
         val sb = StringBuilder()
+        sb.append("Estás al aire en cabina. ")
         if (previousSong != null) {
-            sb.append("Acabamos de escuchar ${previousSong.title} de ${previousSong.artist}. ")
+            sb.append("Sonó recién: '${previousSong.title}' de ${previousSong.artist}. ")
         }
-        val first = upcomingSongs.firstOrNull()
-        if (first != null) {
-            sb.append("Ahora arranca el bloque $blockTheme con el rolón ${first.title} de ${first.artist}. ")
-        } else {
-            sb.append("Ahora arranca el bloque $blockTheme. ")
+        if (nextSong != null) {
+            sb.append("Siguiente tema: '${nextSong.title}' de ${nextSong.artist}. ")
         }
-        sb.append("Haz una presentación de radio mexicana con buen estilo y energía, de unas 25 a 35 palabras, sin comillas ni asteriscos.")
+        sb.append("Bloque/estilo: $blockTheme. ")
+        sb.append("Consigna creativa para esta salida: $angle ")
+        sb.append("Extensión objetivo: alrededor de 25 a 35 palabras. ")
+        sb.append("IMPORTANTE: PROHIBIDO iniciar con 'Aquí arranca' o 'Ahora arranca'. Inventa una entrada diferente, fresca, variada y con personalidad propia.")
         return sb.toString()
     }
 
@@ -225,13 +241,33 @@ class DjScriptGenerator(
         blockTheme: String,
         previousSong: DjSongInfo?
     ): String {
-        if (upcomingSongs.isEmpty()) return "Seguimos con más música aquí en tu reproductor, súbele al volumen y disfruta el momento."
+        if (upcomingSongs.isEmpty()) return "Seguimos con buena música en tu reproductor. Disfruta el momento y súbele al volumen."
         val firstSong = upcomingSongs.first()
+        val title = firstSong.title
+        val artist = firstSong.artist
+        val prev = previousSong?.title
+
         val templates = listOf(
-            "¡Qué rolón acabamos de escuchar! Ahora nos arrancamos con este bloque de $blockTheme, y para abrir pista te traigo ${firstSong.title} de ${firstSong.artist}. ¡Súbele todo!",
-            "Seguimos con todo el ritmo en $blockTheme. Échale oído a esta joyita que se viene: ${firstSong.title} de ${firstSong.artist}, una verdadera chulada para disfrutar.",
-            "Para toda la banda que pedía buena música, continuamos en $blockTheme con ${firstSong.title} a cargo de ${firstSong.artist}. ¡Que no pare la fiesta!",
-            "¡Esto se está poniendo buenísimo! Quédate conmigo en este especial de $blockTheme y disfruta de ${firstSong.title} por ${firstSong.artist}, te va a encantar."
+            if (prev != null) "Dejamos atrás a $prev y nos vamos tendidos con este temazo: $title de $artist. ¡Súbele que se pone bueno!"
+            else "¡Vámonos con todo! Échale oído a esta joyita que suena ahora mismo: $title de $artist. ¡Disfrútala!",
+
+            "¿Cómo va esa vibra? Aquí seguimos con lo mejor de $blockTheme y se viene $title con el talento de $artist. ¡Pónganle oreja!",
+
+            "¡Qué chulada de música! Ahora le toca brillar a $artist con $title. Ponte cómodo y disfruta de este rolón.",
+
+            "Para toda la banda que le gusta el buen ritmo, seguimos en $blockTheme escuchando $title de $artist. ¡Que no pare la música!",
+
+            "Subiendo el nivel de la sintonía, aquí te traigo una verdadera joya: $title a cargo de $artist. ¡A gozarla!",
+
+            "Si necesitabas energía para tu día, estás en el lugar correcto. Suena fuerte $title de $artist en este bloque de $blockTheme.",
+
+            "¡Esto se pone cada vez mejor! Quédate en sintonía porque lo que viene es pura calidad: $title de $artist.",
+
+            "Sin rodeos y directito al corazón, nos arrancamos con $title por $artist. ¡Súbele al volumen y canta con todo!",
+
+            "¡Uf, qué manera de disfrutar la música! Nos acompaña $artist con su rolón $title dentro de $blockTheme. ¡A todo volumen!",
+
+            "Seguimos con la mejor selección del día. Prepárate para cantar con $title de $artist, una rola perfecta para el momento."
         )
         return sanitizeScript(templates.random())
     }
