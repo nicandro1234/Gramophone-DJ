@@ -22,7 +22,10 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.DialogInterface
 import android.content.SharedPreferences
+import android.content.Intent
+import android.widget.Toast
 import android.content.res.ColorStateList
+import org.akanework.gramophone.ui.fragments.settings.DjSettingsActivity
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
@@ -263,6 +266,7 @@ class FullBottomSheet
     private val bottomSheetPlaylistButton: MaterialButton
     private val bottomSheetTimerButton: MaterialButton
     private val bottomSheetPlaybackSpeedButton: MaterialButton
+    private val bottomSheetDjButton: MaterialButton
     private val bottomSheetFavoriteButton: MaterialButton
     val bottomSheetLyricButton: MaterialButton
     private val bottomSheetFullSeekBar: SeekBar
@@ -290,6 +294,7 @@ class FullBottomSheet
         bottomSheetLoopButton = findViewById(R.id.sheet_loop)
         bottomSheetTimerButton = findViewById(R.id.timer)
         bottomSheetPlaybackSpeedButton = findViewById(R.id.playback_speed)
+        bottomSheetDjButton = findViewById(R.id.dj_mode_button)
         bottomSheetFavoriteButton = findViewById(R.id.favor)
         bottomSheetPlaylistButton = findViewById(R.id.playlist)
         bottomSheetLyricButton = findViewById(R.id.lyrics)
@@ -488,6 +493,22 @@ class FullBottomSheet
             }
         }
 
+        bottomSheetDjButton.setOnClickListener {
+            ViewCompat.performHapticFeedback(it, HapticFeedbackConstantsCompat.CONTEXT_CLICK)
+            val current = prefs.getBoolean("dj_mode_enabled", false)
+            val next = !current
+            prefs.edit().putBoolean("dj_mode_enabled", next).apply()
+            GramophonePlaybackService.instanceForWidgetAndLyricsOnly?.djEngine?.setDjModeEnabled(next)
+            updateDjState()
+            val msg = if (next) "🎙️ Modo DJ Livi activado" else "Modo DJ desactivado"
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+        }
+
+        bottomSheetDjButton.setOnLongClickListener {
+            context.startActivity(Intent(context, DjSettingsActivity::class.java))
+            true
+        }
+
         bottomSheetPlaybackSpeedButton.setOnClickListener {
             ViewCompat.performHapticFeedback(it, HapticFeedbackConstantsCompat.CONTEXT_CLICK)
             if (instance != null)
@@ -669,7 +690,18 @@ class FullBottomSheet
         }
     }
 
+        fun updateDjState() {
+        val enabled = prefs.getBoolean("dj_mode_enabled", false)
+        bottomSheetDjButton.isChecked = enabled
+        val activeColor = MaterialColors.getColor(this, androidx.appcompat.R.attr.colorPrimary)
+        val inactiveColor = MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface)
+        bottomSheetDjButton.iconTint = ColorStateList.valueOf(if (enabled) activeColor else inactiveColor)
+    }
+
     private fun refreshSettings(key: String?) {
+        if (key == null || key == "dj_mode_enabled") {
+            updateDjState()
+        }
         if (key == null || key == "default_progress_bar") {
             if (prefs.getBooleanStrict("default_progress_bar", false)) {
                 bottomSheetFullSlider.visibility = VISIBLE

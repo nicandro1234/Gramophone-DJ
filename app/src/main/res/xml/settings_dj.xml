@@ -17,6 +17,8 @@
     <ListPreference
         android:defaultValue="deepseek-v4.1-flash"
         android:dialogTitle="@string/settings_dj_model_title"
+        android:entries="@array/dj_model_initial_entries"
+        android:entryValues="@array/dj_model_initial_values"
         android:key="dj_api_model"
         android:summary="@string/settings_dj_model_summary"
         android:title="@string/settings_dj_model_title"

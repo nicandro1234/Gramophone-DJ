@@ -17,6 +17,10 @@
 
 package org.akanework.gramophone.ui.fragments
 
+import androidx.preference.PreferenceManager
+import org.akanework.gramophone.logic.GramophonePlaybackService
+import org.akanework.gramophone.ui.fragments.settings.DjSettingsActivity
+
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.media.audiofx.AudioEffect
@@ -185,6 +189,16 @@ class ViewPagerFragment : BaseFragment(true) {
                             }
                         }
                     }
+                }
+
+                R.id.dj_mode -> {
+                    val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
+                    val currentEnabled = prefs.getBoolean("dj_mode_enabled", false)
+                    val newEnabled = !currentEnabled
+                    prefs.edit().putBoolean("dj_mode_enabled", newEnabled).apply()
+                    GramophonePlaybackService.instanceForWidgetAndLyricsOnly?.djEngine?.setDjModeEnabled(newEnabled)
+                    val msg = if (newEnabled) "🎙️ Modo DJ Livi activado" else "Modo DJ desactivado"
+                    Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
                 }
 
                 R.id.settings -> {

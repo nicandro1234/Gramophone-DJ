@@ -95,18 +95,19 @@ class DjSettingsFragment : BasePreferenceFragment() {
             } catch (_: Exception) {}
         }
 
-        // When no cache exists yet, show current value if set + custom option
+        // When no cache exists yet, keep the initial XML entries intact and ensure current value is present
         val currentVal = modelPref.value
-        val entries = ArrayList<CharSequence>()
-        val entryValues = ArrayList<CharSequence>()
         if (!currentVal.isNullOrEmpty() && currentVal != "custom") {
-            entries.add(currentVal)
-            entryValues.add(currentVal)
+            val values = modelPref.entryValues ?: emptyArray()
+            if (!values.contains(currentVal)) {
+                val newEntries = (modelPref.entries ?: emptyArray()).toMutableList()
+                val newValues = values.toMutableList()
+                newEntries.add(0, currentVal)
+                newValues.add(0, currentVal)
+                modelPref.entries = newEntries.toTypedArray()
+                modelPref.entryValues = newValues.toTypedArray()
+            }
         }
-        entries.add(getString(R.string.settings_dj_model_custom_option))
-        entryValues.add("custom")
-        modelPref.entries = entries.toTypedArray()
-        modelPref.entryValues = entryValues.toTypedArray()
     }
 
     private fun updateModelListEntries(modelPref: ListPreference, models: List<String>) {
@@ -144,7 +145,7 @@ class DjSettingsFragment : BasePreferenceFragment() {
             Toast.makeText(context, "Consultando modelos disponibles a la API...", Toast.LENGTH_SHORT).show()
         }
 
-        viewLifecycleOwner.lifecycleScope.launch {
+        lifecycleScope.launch {
             val result = DjScriptGenerator.fetchModels(apiKey, endpoint)
             result.fold(
                 onSuccess = { models ->
@@ -186,7 +187,7 @@ class DjSettingsFragment : BasePreferenceFragment() {
         val context = requireContext()
         Toast.makeText(context, "Sintetizando voz de prueba con Kokoro...", Toast.LENGTH_SHORT).show()
 
-        viewLifecycleOwner.lifecycleScope.launch {
+        lifecycleScope.launch {
             val service = GramophonePlaybackService.instanceForWidgetAndLyricsOnly
             val prefs = PreferenceManager.getDefaultSharedPreferences(context)
             val djEngine = service?.djEngine ?: DjEngine.getInstance(
