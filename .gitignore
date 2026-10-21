@@ -1,6 +1,7 @@
 *.iml
 .gradle
 /local.properties
+*.apk
 /package.properties
 /.idea
 /.kotlin
@@ -10,3 +11,4 @@
 .externalNativeBuild
 .cxx
 local.properties
+*.apk
