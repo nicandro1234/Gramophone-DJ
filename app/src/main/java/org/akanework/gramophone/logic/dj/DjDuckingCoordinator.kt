@@ -10,8 +10,10 @@ import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.speech.tts.Voice
 import android.util.Log
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.preference.PreferenceManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -27,9 +29,9 @@ class DjDuckingCoordinator(
 ) {
     companion object {
         private const val TAG = "DjDuckingCoordinator"
-        const val DUCKED_VOLUME = 0.25f
+        const val DEFAULT_DUCKED_VOLUME = 0.07f
         const val NORMAL_VOLUME = 1.0f
-        const val RAMP_DURATION_MS = 400L
+        const val RAMP_DURATION_MS = 250L
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -51,27 +53,133 @@ class DjDuckingCoordinator(
         initSystemTts()
     }
 
-    private fun initSystemTts() {
+    private fun initSystemTts(onReady: ((TextToSpeech?) -> Unit)? = null) {
         try {
             systemTts = TextToSpeech(context.applicationContext) { status ->
                 if (status == TextToSpeech.SUCCESS) {
                     isSystemTtsReady = true
-                    val tts = systemTts
-                    val locAr = Locale("es", "AR")
-                    val result = tts?.setLanguage(locAr)
-                    if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                        tts?.setLanguage(Locale("es"))
+                    systemTts?.let { tts ->
+                        applyBestVoice(tts)
+                        tts.setPitch(1.05f)
+                        tts.setSpeechRate(1.02f)
                     }
-                    tts?.setPitch(1.05f)
-                    tts?.setSpeechRate(1.0f)
                     Log.i(TAG, "Native Android TextToSpeech initialized successfully.")
+                    onReady?.invoke(systemTts)
                 } else {
                     Log.w(TAG, "Native Android TextToSpeech init returned code: $status")
+                    onReady?.invoke(null)
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize native Android TextToSpeech", e)
+            onReady?.invoke(null)
         }
+    }
+
+    fun applyBestVoice(tts: TextToSpeech) {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val selectedVoiceName = prefs.getString("dj_tts_voice", null)
+
+        val voices = try { tts.voices } catch (e: Exception) { null }
+        if (!voices.isNullOrEmpty()) {
+            if (!selectedVoiceName.isNullOrBlank() && selectedVoiceName != "auto") {
+                val matched = voices.find { it.name == selectedVoiceName }
+                if (matched != null) {
+                    try {
+                        tts.voice = matched
+                        Log.i(TAG, "Applied user selected TTS voice: ${matched.name}")
+                        return
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to set user voice, falling back to auto", e)
+                    }
+                }
+            }
+
+            val bestVoice = findBestSpanishVoice(voices)
+            if (bestVoice != null) {
+                try {
+                    tts.voice = bestVoice
+                    Log.i(TAG, "Applied best Spanish voice: ${bestVoice.name} (${bestVoice.locale})")
+                    return
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to set best voice", e)
+                }
+            }
+        }
+
+        val locAr = Locale.forLanguageTag("es-AR")
+        val result = tts.setLanguage(locAr)
+        if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+            tts.setLanguage(Locale.forLanguageTag("es"))
+        }
+    }
+
+    private fun findBestSpanishVoice(voices: Set<Voice>): Voice? {
+        val spanishVoices = voices.filter { voice ->
+            val lang = voice.locale.language
+            lang.equals("es", ignoreCase = true) &&
+                !voice.features.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)
+        }
+
+        if (spanishVoices.isEmpty()) return null
+
+        return spanishVoices.maxByOrNull { voice ->
+            var score = 0
+            val tag = voice.locale.toLanguageTag().lowercase()
+            val name = voice.name.lowercase()
+
+            // Argentine Spanish preferred, then Latin American, then other Spanish
+            if (tag.contains("ar")) score += 1000
+            else if (tag.contains("us") || tag.contains("419") || tag.contains("mx")) score += 600
+            else score += 200
+
+            // Quality
+            score += when (voice.quality) {
+                Voice.QUALITY_VERY_HIGH -> 800
+                Voice.QUALITY_HIGH -> 400
+                Voice.QUALITY_NORMAL -> 100
+                else -> 0
+            }
+
+            // Neural / Network / High-fidelity indicators (significantly less robotic)
+            if (name.contains("network")) score += 500
+            if (name.contains("neural")) score += 500
+            if (name.contains("natural")) score += 400
+            if (name.contains("premium")) score += 300
+            if (name.contains("sfb")) score += 200
+            if (name.contains("female")) score += 150
+
+            score
+        }
+    }
+
+    fun getAvailableSpanishVoices(onResult: (List<Voice>) -> Unit) {
+        val tts = systemTts
+        if (tts != null && isSystemTtsReady) {
+            val list = try {
+                tts.voices?.filter { it.locale.language.equals("es", ignoreCase = true) }
+                    ?.sortedByDescending { it.quality } ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+            onResult(list)
+        } else {
+            initSystemTts { readyTts ->
+                val list = try {
+                    readyTts?.voices?.filter { it.locale.language.equals("es", ignoreCase = true) }
+                        ?.sortedByDescending { it.quality } ?: emptyList()
+                } catch (e: Exception) {
+                    emptyList()
+                }
+                onResult(list)
+            }
+        }
+    }
+
+    private fun getDuckingVolume(): Float {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val levelStr = prefs.getString("dj_ducking_level", "0.07")
+        return levelStr?.toFloatOrNull() ?: DEFAULT_DUCKED_VOLUME
     }
 
     fun playInterventionWithDucking(
@@ -92,14 +200,14 @@ class DjDuckingCoordinator(
         if (exoPlayer == null || !exoPlayer.isPlaying) {
             Log.i(TAG, "Player is idle/null, speaking directly without ducking.")
             if (hasAudio) {
-                playSpeechAudio(audioFile!!) { onComplete?.invoke() }
+                playSpeechAudio(audioFile) { onComplete?.invoke() }
             } else {
                 playFallbackSystemSpeech(fallbackText!!) { onComplete?.invoke() }
             }
             return
         }
 
-        // 1. Duck ExoPlayer volume smoothly
+        // 1. Duck ExoPlayer volume smoothly and aggressively
         duckExoPlayer(exoPlayer) {
             val finishAction: () -> Unit = {
                 // 3. Restore ExoPlayer volume smoothly
@@ -110,7 +218,7 @@ class DjDuckingCoordinator(
 
             // 2. Play speech audio (Kokoro WAV or native TTS fallback)
             if (hasAudio) {
-                playSpeechAudio(audioFile!!, finishAction)
+                playSpeechAudio(audioFile, finishAction)
             } else {
                 playFallbackSystemSpeech(fallbackText!!, finishAction)
             }
@@ -122,7 +230,8 @@ class DjDuckingCoordinator(
         volumeAnimator?.cancel()
 
         val startVol = exoPlayer.volume
-        volumeAnimator = ValueAnimator.ofFloat(startVol, DUCKED_VOLUME).apply {
+        val targetVol = getDuckingVolume()
+        volumeAnimator = ValueAnimator.ofFloat(startVol, targetVol).apply {
             duration = RAMP_DURATION_MS
             addUpdateListener { animator ->
                 val v = animator.animatedValue as Float
@@ -197,13 +306,15 @@ class DjDuckingCoordinator(
         if (tts == null || !isSystemTtsReady) {
             Log.w(TAG, "System TTS not ready yet, attempting reinit...")
             initSystemTts()
-            // Even if not ready, release speaking flag after a delay to not lock volume
             mainHandler.postDelayed({
                 _isSpeaking.value = false
                 onFinished()
             }, 500L)
             return
         }
+
+        // Apply latest voice preferences
+        applyBestVoice(tts)
 
         val utteranceId = "dj_livi_${System.currentTimeMillis()}"
         var finishDispatched = false

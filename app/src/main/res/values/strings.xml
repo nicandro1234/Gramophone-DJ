@@ -1324,4 +1324,8 @@ supporting local search. This string is displayed in the search bar when using G
     <string name="settings_dj_test_speech_title">Test DJ Voice</string>
     <string name="settings_dj_test_speech_summary">Synthesize a test radio introduction using Kokoro TTS</string>
     <string name="settings_dj_status_ready">DJ Engine is ready</string>
+    <string name="settings_dj_ducking_title">Volumen de fondo durante DJ (Ducking)</string>
+    <string name="settings_dj_ducking_summary">Atenuación de la música mientras habla Livi</string>
+    <string name="settings_dj_voice_title">Voz de Livi</string>
+    <string name="settings_dj_voice_summary">Elegí la voz para las intervenciones</string>
 </resources>

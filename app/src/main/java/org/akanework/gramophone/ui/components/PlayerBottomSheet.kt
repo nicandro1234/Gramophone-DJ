@@ -126,8 +126,8 @@ class PlayerBottomSheet private constructor(
     }
 
     fun open() {
-        if (standardBottomSheetBehavior!!.state == BottomSheetBehavior.STATE_COLLAPSED) {
-            standardBottomSheetBehavior!!.state = BottomSheetBehavior.STATE_EXPANDED
+        if (standardBottomSheetBehavior?.state == BottomSheetBehavior.STATE_COLLAPSED) {
+            standardBottomSheetBehavior?.state = BottomSheetBehavior.STATE_EXPANDED
         }
     }
 
@@ -213,7 +213,7 @@ class PlayerBottomSheet private constructor(
         doOnLayout { // wait for CoordinatorLayout to finish to allow getting behaviour
             standardBottomSheetBehavior = MyBottomSheetBehavior.from(this)
             fullPlayer.minimize = {
-                standardBottomSheetBehavior!!.state = BottomSheetBehavior.STATE_COLLAPSED
+                standardBottomSheetBehavior?.state = BottomSheetBehavior.STATE_COLLAPSED
             }
             @SuppressLint("RestrictedApi")
             lyricsBackHelper =
@@ -285,7 +285,7 @@ class PlayerBottomSheet private constructor(
             activity.onBackPressedDispatcher.addCallback(activity, bottomSheetBackCallback!!)
             standardBottomSheetBehavior!!.addBottomSheetCallback(bottomSheetCallback)
             // this is required after onRestoreSavedInstanceState() in BottomSheetBehaviour
-            bottomSheetCallback.onStateChanged(this, standardBottomSheetBehavior!!.state)
+            bottomSheetCallback.onStateChanged(this, standardBottomSheetBehavior?.state ?: BottomSheetBehavior.STATE_COLLAPSED)
             lifecycleOwner.lifecycle.addObserver(this)
             updatePeekHeight()
             dispatchBottomSheetInsets()

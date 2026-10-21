@@ -27,10 +27,15 @@ class DjScriptGenerator(
         const val DEFAULT_DEEPSEEK_MODEL = "deepseek-chat"
 
         private const val DJ_SYSTEM_PROMPT =
-            "Sos Livi, la DJ de radio oficial de este reproductor de música. " +
-            "Tenés una personalidad cálida, fresca, apasionada por la música, con acento rioplatense natural (usando voseo: 'te traigo', 'escuchá', 'vamos con'). " +
-            "Tu misión es presentar el siguiente bloque musical en 1 a 2 oraciones muy cortas (máximo 25 a 35 palabras en total). " +
-            "No uses emojis, hashtags ni acotaciones entre paréntesis como (música de fondo). Solo el texto exacto que vas a hablar al micrófono."
+            "Sos Livi, la DJ y locutora de radio oficial de este reproductor de música. " +
+            "Hablás con acento rioplatense natural, cálido y fresco, usando voseo ('te traigo', 'escuchá', 'vamos con', 'arrancamos con'). " +
+            "Tu misión es presentar el siguiente bloque musical en 1 o 2 oraciones muy cortas (máximo 20 a 25 palabras en total). " +
+            "REGLAS OBLIGATORIAS PARA SÍNTESIS DE VOZ: " +
+            "1. El texto se envía directamente a un sintetizador de voz (TTS). Cualquier símbolo será pronunciado en voz alta. " +
+            "2. NUNCA uses comillas, asteriscos, guiones, barras, paréntesis ni corchetes. " +
+            "3. NUNCA uses emojis, emoticones ni hashtags. " +
+            "4. NUNCA agregues acotaciones como (música de fondo), ni 'Livi:'. " +
+            "5. Escribí únicamente texto corrido en castellano limpio con letras, puntos y comas."
 
         suspend fun fetchModels(
             apiKey: String?,
@@ -193,16 +198,15 @@ class DjScriptGenerator(
     ): String {
         val sb = StringBuilder()
         if (previousSong != null) {
-            sb.append("Acabamos de escuchar \"${previousSong.title}\" de ${previousSong.artist}. ")
+            sb.append("Acabamos de escuchar ${previousSong.title} de ${previousSong.artist}. ")
         }
         sb.append("El próximo bloque es: $blockTheme. ")
         sb.append("Las canciones que vienen son: ")
         upcomingSongs.take(3).forEachIndexed { index, song ->
             sb.append("${song.title} de ${song.artist}")
-            if (song.year != null) sb.append(" (${song.year})")
             if (index < upcomingSongs.take(3).lastIndex) sb.append(", ")
         }
-        sb.append(". Hacé una intro radial corta y con onda.")
+        sb.append(". Hacé una intro radial hablada, cortísima y sin comillas, asteriscos, paréntesis ni emojis.")
         return sb.toString()
     }
 
@@ -211,22 +215,57 @@ class DjScriptGenerator(
         blockTheme: String,
         previousSong: DjSongInfo?
     ): String {
-        if (upcomingSongs.isEmpty()) return "¡Seguimos con más música acá en tu reproductor!"
+        if (upcomingSongs.isEmpty()) return "Seguimos con más música acá en tu reproductor."
         val firstSong = upcomingSongs.first()
         val templates = listOf(
-            "¡Qué temazo! Ahora seguimos con un bloque de $blockTheme. Arrancamos con ${firstSong.title} de ${firstSong.artist}, ¡subí el volumen!",
+            "Qué temazo! Ahora seguimos con un bloque de $blockTheme. Arrancamos con ${firstSong.title} de ${firstSong.artist}, subí el volumen!",
             "Seguimos viaje con $blockTheme. Escuchá lo que se viene ahora: ${firstSong.title} por ${firstSong.artist}.",
-            "Para los que pedían más ritmo, arrancamos este bloque de $blockTheme con ${firstSong.title} de ${firstSong.artist}. ¡Que no pare la música!",
+            "Para los que pedían más ritmo, arrancamos este bloque de $blockTheme con ${firstSong.title} de ${firstSong.artist}. Que no pare la música!",
             "Esto suena tremendo. Te dejo con ${firstSong.title} de ${firstSong.artist} en este especial de $blockTheme."
         )
-        return templates.random()
+        return sanitizeScript(templates.random())
     }
 
-    private fun sanitizeScript(rawScript: String): String {
-        return rawScript
-            .replace(Regex("[\"“”]"), "")
-            .replace(Regex("\\(.*?\\)"), "")
-            .replace(Regex("\\[.*?\\]"), "")
-            .trim()
+    fun sanitizeScript(rawScript: String): String {
+        var text = rawScript
+
+        // Remove prefixes like "Livi:", "DJ:", "Locutor:"
+        text = text.replace(Regex("^(Livi|DJ|Locutora?|Host):\\s*", RegexOption.IGNORE_CASE), "")
+
+        // Remove anything inside parentheses, brackets, or braces
+        text = text.replace(Regex("\\(.*?\\)"), " ")
+        text = text.replace(Regex("\\[.*?\\]"), " ")
+        text = text.replace(Regex("\\{.*?\\}"), " ")
+
+        // Remove markdown formatting: **, *, __, _, ~~, #, `, ´
+        text = text.replace(Regex("[*_~#`´]"), "")
+
+        // Remove quotation marks of all kinds: ", ', “, ”, « », etc.
+        text = text.replace(Regex("[\"“”'«»‘’]"), "")
+
+        // Remove technical symbols: /, \, |, +, =, <, >, @, %, &, ^, ~, $
+        text = text.replace(Regex("[/\\\\|+=<>@%&^~\\$]"), " ")
+
+        // Replace hyphens and dashes with comma (so TTS does not pronounce "guión")
+        text = text.replace(Regex("\\s*[-–—]+\\s*"), ", ")
+
+        // Remove emojis and miscellaneous symbols (Unicode Symbol, Modifier, Other, etc.)
+        text = text.replace(Regex("[\\p{So}\\p{Sk}\\p{Sm}\\p{Sc}\\p{Cn}]"), "")
+
+        // Clean up ellipses (...) to a single period
+        text = text.replace(Regex("\\.{2,}"), ".")
+
+        // Clean up repeated punctuation (e.g. "!!", "??", ",,")
+        text = text.replace(Regex("!+"), "!")
+        text = text.replace(Regex("\\?+"), "?")
+        text = text.replace(Regex(",+"), ",")
+
+        // Remove inverted Spanish exclamation/question marks so TTS doesn't stumble
+        text = text.replace("¡", "").replace("¿", "")
+
+        // Collapse multiple spaces
+        text = text.replace(Regex("\\s+"), " ").trim()
+
+        return text
     }
 }

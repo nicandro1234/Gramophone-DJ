@@ -42,6 +42,24 @@
         android:summary="@string/settings_dj_endpoint_summary"
         android:title="@string/settings_dj_endpoint_title" />
 
+    <ListPreference
+        android:defaultValue="0.07"
+        android:dialogTitle="@string/settings_dj_ducking_title"
+        android:entries="@array/dj_ducking_entries"
+        android:entryValues="@array/dj_ducking_values"
+        android:key="dj_ducking_level"
+        android:summary="@string/settings_dj_ducking_summary"
+        android:title="@string/settings_dj_ducking_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <ListPreference
+        android:defaultValue="auto"
+        android:dialogTitle="@string/settings_dj_voice_title"
+        android:key="dj_tts_voice"
+        android:summary="@string/settings_dj_voice_summary"
+        android:title="@string/settings_dj_voice_title"
+        app:useSimpleSummaryProvider="true" />
+
     <Preference
         android:key="dj_test_speech"
         android:summary="@string/settings_dj_test_speech_summary"

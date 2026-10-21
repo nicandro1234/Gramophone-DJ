@@ -269,7 +269,7 @@ class FullBottomSheet
     private val bottomSheetPlaylistButton: MaterialButton
     private val bottomSheetTimerButton: MaterialButton
     private val bottomSheetPlaybackSpeedButton: MaterialButton
-    private val bottomSheetDjButton: MaterialButton
+    private val bottomSheetDjButton: MaterialButton?
     private val bottomSheetFavoriteButton: MaterialButton
     val bottomSheetLyricButton: MaterialButton
     private val bottomSheetFullSeekBar: SeekBar
@@ -496,7 +496,7 @@ class FullBottomSheet
             }
         }
 
-        bottomSheetDjButton.setOnClickListener {
+        bottomSheetDjButton?.setOnClickListener {
             ViewCompat.performHapticFeedback(it, HapticFeedbackConstantsCompat.CONTEXT_CLICK)
             val current = prefs.getBoolean("dj_mode_enabled", false)
             val next = !current
@@ -528,7 +528,7 @@ class FullBottomSheet
             }
         }
 
-        bottomSheetDjButton.setOnLongClickListener {
+        bottomSheetDjButton?.setOnLongClickListener {
             context.startActivity(Intent(context, DjSettingsActivity::class.java))
             true
         }
@@ -716,10 +716,10 @@ class FullBottomSheet
 
         fun updateDjState() {
         val enabled = prefs.getBoolean("dj_mode_enabled", false)
-        bottomSheetDjButton.isChecked = enabled
+        bottomSheetDjButton?.isChecked = enabled
         val activeColor = MaterialColors.getColor(this, androidx.appcompat.R.attr.colorPrimary)
         val inactiveColor = MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface)
-        bottomSheetDjButton.iconTint = ColorStateList.valueOf(if (enabled) activeColor else inactiveColor)
+        bottomSheetDjButton?.iconTint = ColorStateList.valueOf(if (enabled) activeColor else inactiveColor)
     }
 
     private fun refreshSettings(key: String?) {

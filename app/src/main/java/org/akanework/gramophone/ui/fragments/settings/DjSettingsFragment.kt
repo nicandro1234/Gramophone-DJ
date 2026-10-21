@@ -65,6 +65,9 @@ class DjSettingsFragment : BasePreferenceFragment() {
             fetchLiveModels(modelPref, prefs, silent = true)
         }
 
+        val voicePref = findPreference<ListPreference>("dj_tts_voice")
+        loadAvailableVoices(voicePref, prefs)
+
         findPreference<Preference>("dj_test_speech")?.setOnPreferenceClickListener {
             testDjVoice()
             true
@@ -123,6 +126,35 @@ class DjSettingsFragment : BasePreferenceFragment() {
 
         modelPref.entries = entries.toTypedArray()
         modelPref.entryValues = entryValues.toTypedArray()
+    }
+
+    private fun loadAvailableVoices(voicePref: ListPreference?, prefs: SharedPreferences) {
+        if (voicePref == null) return
+        val context = context ?: return
+        val service = GramophonePlaybackService.instanceForWidgetAndLyricsOnly
+        val djEngine = service?.djEngine ?: DjEngine.getInstance(
+            context = context,
+            playerProvider = { service?.endedWorkaroundPlayer?.exoPlayer }
+        )
+
+        djEngine.duckingCoordinator.getAvailableSpanishVoices { voices ->
+            val entries = mutableListOf<CharSequence>("Automática (Mejor calidad detectada)")
+            val entryValues = mutableListOf<CharSequence>("auto")
+
+            for (v in voices) {
+                val isNeural = v.name.contains("network", ignoreCase = true) || v.name.contains("neural", ignoreCase = true)
+                val typeTag = if (isNeural) " [Alta fidelidad]" else ""
+                val label = "${v.locale.displayName} - ${v.name}$typeTag"
+                entries.add(label)
+                entryValues.add(v.name)
+            }
+
+            voicePref.entries = entries.toTypedArray()
+            voicePref.entryValues = entryValues.toTypedArray()
+            if (voicePref.value == null) {
+                voicePref.value = "auto"
+            }
+        }
     }
 
     private fun fetchLiveModels(

@@ -57,4 +57,18 @@
         <item>deepseek-v4.1-flash</item>
         <item>custom</item>
     </string-array>
+
+    <string-array name="dj_ducking_entries">
+        <item>Agresivo / Muy bajo (7% - Recomendado)</item>
+        <item>Bajo (12%)</item>
+        <item>Medio (20%)</item>
+        <item>Suave (30%)</item>
+    </string-array>
+
+    <string-array name="dj_ducking_values" translatable="false">
+        <item>0.07</item>
+        <item>0.12</item>
+        <item>0.20</item>
+        <item>0.30</item>
+    </string-array>
 </resources>
