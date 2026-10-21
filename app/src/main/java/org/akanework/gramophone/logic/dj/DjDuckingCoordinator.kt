@@ -123,8 +123,8 @@ class DjDuckingCoordinator(
             }
         }
 
-        val locAr = Locale.forLanguageTag("es-AR")
-        val result = tts.setLanguage(locAr)
+        val locMx = Locale.forLanguageTag("es-MX")
+        val result = tts.setLanguage(locMx)
         if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
             tts.setLanguage(Locale.forLanguageTag("es"))
         }
@@ -144,8 +144,9 @@ class DjDuckingCoordinator(
             val tag = voice.locale.toLanguageTag().lowercase()
             val name = voice.name.lowercase()
 
-            if (tag.contains("ar")) score += 1000
-            else if (tag.contains("us") || tag.contains("419") || tag.contains("mx")) score += 600
+            if (tag.contains("mx")) score += 1200
+            else if (tag.contains("419") || tag.contains("us")) score += 800
+            else if (tag.contains("ar") || tag.contains("es")) score += 400
             else score += 200
 
             score += when (voice.quality) {

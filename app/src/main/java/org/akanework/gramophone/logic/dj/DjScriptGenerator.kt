@@ -27,12 +27,12 @@ class DjScriptGenerator(
         const val DEFAULT_DEEPSEEK_MODEL = "deepseek-chat"
 
         private const val DJ_SYSTEM_PROMPT =
-            "Sos Livi, locutora de radio argentina de este reproductor de música. " +
-            "Hablás únicamente en castellano con acento rioplatense natural y voseo ('te traigo', 'escuchá', 'vamos con', 'arrancamos con'). " +
-            "Tu misión es presentar el siguiente bloque musical en 1 sola oración cortísima de máximo 15 palabras. " +
+            "Eres Livi, la DJ y locutora de radio mexicana oficial de este reproductor de música. " +
+            "Hablas con un tono mexicano auténtico, fresco, animado y alivianado, usando modismos naturales de México ('rolón', 'buena rola', 'aquí te traigo', 'échense esta rola', 'súbele el volumen', 'chulada de rola', 'para ambientar'). " +
+            "Tu misión es presentar el siguiente bloque musical con energía y buena vibra en unas 25 a 35 palabras. " +
             "REGLAS ESTRICTAS: " +
-            "1. Escribí ÚNICAMENTE la frase exacta que vas a decir al aire. Jamás expliques tu razonamiento ni repitas la consigna. " +
-            "2. Hablá 100% en castellano. " +
+            "1. Escribe ÚNICAMENTE las palabras exactas que vas a decir al aire. Jamás expliques tu razonamiento ni repitas la consigna. " +
+            "2. Habla 100% en español de México. " +
             "3. NUNCA uses comillas, asteriscos, guiones, barras, paréntesis ni emojis. " +
             "4. NUNCA incluyas prefijos como 'Livi:' ni acotaciones."
 
@@ -208,15 +208,15 @@ class DjScriptGenerator(
     ): String {
         val sb = StringBuilder()
         if (previousSong != null) {
-            sb.append("Venimos de escuchar ${previousSong.title} de ${previousSong.artist}. ")
+            sb.append("Acabamos de escuchar ${previousSong.title} de ${previousSong.artist}. ")
         }
         val first = upcomingSongs.firstOrNull()
         if (first != null) {
-            sb.append("Ahora arranca el bloque $blockTheme con ${first.title} de ${first.artist}. ")
+            sb.append("Ahora arranca el bloque $blockTheme con el rolón ${first.title} de ${first.artist}. ")
         } else {
             sb.append("Ahora arranca el bloque $blockTheme. ")
         }
-        sb.append("Escribí una intro radial de 1 sola oración corta (máximo 15 palabras) en castellano rioplatense, sin comillas ni asteriscos.")
+        sb.append("Haz una presentación de radio mexicana con buen estilo y energía, de unas 25 a 35 palabras, sin comillas ni asteriscos.")
         return sb.toString()
     }
 
@@ -225,13 +225,13 @@ class DjScriptGenerator(
         blockTheme: String,
         previousSong: DjSongInfo?
     ): String {
-        if (upcomingSongs.isEmpty()) return "Seguimos con más música acá en tu reproductor."
+        if (upcomingSongs.isEmpty()) return "Seguimos con más música aquí en tu reproductor, súbele al volumen y disfruta el momento."
         val firstSong = upcomingSongs.first()
         val templates = listOf(
-            "Qué temazo! Ahora seguimos con un bloque de $blockTheme. Arrancamos con ${firstSong.title} de ${firstSong.artist}, subí el volumen!",
-            "Seguimos viaje con $blockTheme. Escuchá lo que se viene ahora: ${firstSong.title} por ${firstSong.artist}.",
-            "Para los que pedían más ritmo, arrancamos este bloque de $blockTheme con ${firstSong.title} de ${firstSong.artist}. Que no pare la música!",
-            "Esto suena tremendo. Te dejo con ${firstSong.title} de ${firstSong.artist} en este especial de $blockTheme."
+            "¡Qué rolón acabamos de escuchar! Ahora nos arrancamos con este bloque de $blockTheme, y para abrir pista te traigo ${firstSong.title} de ${firstSong.artist}. ¡Súbele todo!",
+            "Seguimos con todo el ritmo en $blockTheme. Échale oído a esta joyita que se viene: ${firstSong.title} de ${firstSong.artist}, una verdadera chulada para disfrutar.",
+            "Para toda la banda que pedía buena música, continuamos en $blockTheme con ${firstSong.title} a cargo de ${firstSong.artist}. ¡Que no pare la fiesta!",
+            "¡Esto se está poniendo buenísimo! Quédate conmigo en este especial de $blockTheme y disfruta de ${firstSong.title} por ${firstSong.artist}, te va a encantar."
         )
         return sanitizeScript(templates.random())
     }
