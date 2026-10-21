@@ -97,51 +97,27 @@ class DjEngine(
             return
         }
 
-        val isPlaying = controller?.isPlaying == true
-        val currentItem = controller?.currentMediaItem
+        // Always generate a fresh, dynamically randomized cluster of blocks
+        val blocks = clusterer.clusterTracks(songs)
+        _currentBlocks.value = blocks
+        _activeBlockIndex.value = 0
 
-        if (!isPlaying || currentItem == null) {
-            val blocks = clusterer.clusterTracks(songs)
-            _currentBlocks.value = blocks
-            _activeBlockIndex.value = 0
+        val orderedSongs = blocks.flatMap { it.songs }.ifEmpty { songs }
 
-            val orderedSongs = blocks.flatMap { it.songs }.ifEmpty { songs }
-
-            if (controller is MediaController) {
-                controller.setMediaItemsWithTitle(
-                    orderedSongs,
-                    title = "DJ Livi Mix",
-                    shuffleEnabled = false
-                )
-            } else {
-                controller?.setMediaItems(orderedSongs)
-            }
-            controller?.prepare()
-            controller?.play()
-
-            blocks.firstOrNull()?.let { firstBlock ->
-                triggerInterventionForBlock(firstBlock, previousSong = null)
-            }
-        } else {
-            val currentQueue = mutableListOf<MediaItem>()
-            val count = controller.mediaItemCount
-            for (i in 0 until count) {
-                currentQueue.add(controller.getMediaItemAt(i))
-            }
-            val pool = if (currentQueue.isNotEmpty()) currentQueue else songs
-            setupQueue(pool)
-
-            val currIdx = controller.currentMediaItemIndex
-            val upcoming = if (currentQueue.size > currIdx + 1) {
-                currentQueue.drop(currIdx + 1).take(3)
-            } else {
-                pool.filter { it.mediaId != currentItem.mediaId }.take(3)
-            }
-
-            triggerImmediateIntervention(
-                currentSong = currentItem,
-                upcomingSongs = upcoming
+        if (controller is MediaController) {
+            controller.setMediaItemsWithTitle(
+                orderedSongs,
+                title = "DJ Livi Mix",
+                shuffleEnabled = false
             )
+        } else {
+            controller?.setMediaItems(orderedSongs)
+        }
+        controller?.prepare()
+        controller?.play()
+
+        blocks.firstOrNull()?.let { firstBlock ->
+            triggerInterventionForBlock(firstBlock, previousSong = null)
         }
     }
 

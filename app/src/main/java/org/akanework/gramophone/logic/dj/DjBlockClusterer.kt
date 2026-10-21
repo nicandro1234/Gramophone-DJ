@@ -9,11 +9,14 @@ class DjBlockClusterer {
         if (songs.isEmpty()) return emptyList()
 
         val blocks = mutableListOf<DjBlock>()
-        val unassigned = songs.toMutableList()
+        // Shuffle the pool initially so tracks within blocks are varied and not alphabetical
+        val unassigned = songs.shuffled().toMutableList()
 
-        // 1. Cluster by Artist (if artist has >= blockSize songs)
+        // 1. Cluster by Artist (artists with >= blockSize tracks)
         val songsByArtist = unassigned.groupBy { it.mediaMetadata.artist?.toString()?.trim() }
             .filterKeys { !it.isNullOrBlank() }
+            .toList()
+            .shuffled()
 
         for ((artist, artistSongs) in songsByArtist) {
             if (artistSongs.size >= blockSize) {
@@ -39,15 +42,17 @@ class DjBlockClusterer {
                 null
             }
         }.filterKeys { it != null }
+            .toList()
+            .shuffled()
 
         for ((decade, decadeSongs) in songsByDecade) {
-            if (decadeSongs.size >= blockSize) {
+            if (decade != null && decadeSongs.size >= blockSize) {
                 val chunk = decadeSongs.take(blockSize)
                 blocks.add(
                     DjBlock(
                         id = UUID.randomUUID().toString(),
-                        title = "Viaje a los ${decade}s",
-                        themeDescription = "un bloque cargado de nostalgia de los años $decade",
+                        title = "Clásicos de los ${decade}s",
+                        themeDescription = "un bloque cargado de recuerdos de los años $decade",
                         songs = chunk
                     )
                 )
@@ -58,6 +63,8 @@ class DjBlockClusterer {
         // 3. Cluster by Genre
         val songsByGenre = unassigned.groupBy { it.mediaMetadata.genre?.toString()?.trim() }
             .filterKeys { !it.isNullOrBlank() }
+            .toList()
+            .shuffled()
 
         for ((genre, genreSongs) in songsByGenre) {
             if (genreSongs.size >= blockSize) {
@@ -66,7 +73,7 @@ class DjBlockClusterer {
                     DjBlock(
                         id = UUID.randomUUID().toString(),
                         title = "Momento $genre",
-                        themeDescription = "las mejores pistas seleccionadas del género $genre",
+                        themeDescription = "un momento especial a puro $genre",
                         songs = chunk
                     )
                 )
@@ -74,17 +81,30 @@ class DjBlockClusterer {
             }
         }
 
-        // 4. Group remaining into "Mix Descubrimiento" / "Selección Especial"
-        unassigned.chunked(blockSize).forEachIndexed { index, chunk ->
+        // 4. Group remaining tracks into varied discovery mix blocks
+        val remainingChunks = unassigned.shuffled().chunked(blockSize)
+        val mixTitles = listOf(
+            "Mix Selección de Livi",
+            "Variado y con Onda",
+            "Joyas de tu Biblioteca",
+            "Ritmo Continuo",
+            "Mix Sorpresa"
+        )
+
+        remainingChunks.forEachIndexed { index, chunk ->
+            val title = mixTitles.getOrElse(index % mixTitles.size) { "Mix Local Livi" }
             blocks.add(
                 DjBlock(
                     id = UUID.randomUUID().toString(),
-                    title = if (index == 0) "Mix Local Livi" else "Selección Variada",
-                    themeDescription = "una mezcla variada y fresca de tu biblioteca local",
+                    title = title,
+                    themeDescription = "una selección fresca y variada de tu música",
                     songs = chunk
                 )
             )
         }
+
+        // Shuffle blocks order so every DJ session is a fresh and unique sequence!
+        blocks.shuffle()
 
         return blocks
     }
