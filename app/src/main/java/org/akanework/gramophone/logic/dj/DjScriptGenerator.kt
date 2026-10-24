@@ -36,7 +36,8 @@ class DjScriptGenerator(
             "2. TONO AUTÉNTICO Y RELAJADO: Habla como alguien real y tranquilo. CERO clichés de locutor gritón o comercial. PROHIBIDO usar palabras como 'rolón', 'temazo', 'joyita', 'qué chulada', 'vámonos tendidos', 'échale oído', 'con todo el power', 'en cabina', 'en sintonía', 'súbele al volumen', 'pónganle oreja' o 'qué buena rola'. " +
             "3. ENFOQUE EN LA VIBRA O EL ARTISTA: Menciona el estilo, la época, o por qué encaja este momento musical (ej: 'Cambiamos un poco la onda...', 'Seguimos con algo más tranquilo...', 'Un clásico de los 80...'). " +
             "4. CANCIÓN ANTERIOR: Si se indica que la canción previa fue escuchada, puedes conectar sutilmente con ella; si no se menciona o fue saltada, ve DIRECTO al tema que entra sin mirar atrás. " +
-            "5. FORMATO LIMPIO: Escribe ÚNICAMENTE las palabras exactas que vas a decir al aire. Sin comillas, sin asteriscos, sin emojis, sin prefijos como 'Livi:'."
+            "5. PRONUNCIACIÓN FONÉTICA DE NOMBRES EN OTROS IDIOMAS: El sintetizador de voz lee en español puro. Cuando menciones artistas o temas en inglés o con nombres extranjeros, escribe los nombres fonéticamente como sonarían en español para que la voz no los lea con acento roto o literal (por ejemplo: escribe 'Cuín' para Queen, 'De Güíkend' para The Weeknd, 'Téilor Suíft' para Taylor Swift, 'Bili Áilish' para Billie Eilish, 'Máikel Yákson' para Michael Jackson, 'Daft Pank' para Daft Punk, etc.). " +
+            "6. FORMATO LIMPIO: Escribe ÚNICAMENTE las palabras exactas que vas a decir al aire. Sin comillas, sin asteriscos, sin emojis, sin prefijos como 'Livi:'."
 
         private val CREATIVE_ANGLES = listOf(
             "Comenta el cambio de vibra o ritmo de forma relajada y cómplice.",
@@ -200,8 +201,9 @@ class DjScriptGenerator(
 
                     if (!raw.isNullOrBlank()) {
                         val clean = sanitizeScript(raw)
-                        if (clean.isNotBlank()) {
-                            return@withTimeoutOrNull clean
+                        val phonetic = DjPhonetics.applyPhonetics(context, clean)
+                        if (phonetic.isNotBlank()) {
+                            return@withTimeoutOrNull phonetic
                         }
                     }
                 }
@@ -274,7 +276,8 @@ class DjScriptGenerator(
                 "Un toque de $blockTheme para el momento: $title de $artist."
             )
         }
-        return sanitizeScript(templates.random())
+        val selected = templates.random()
+        return DjPhonetics.applyPhonetics(context, sanitizeScript(selected))
     }
 
     fun sanitizeScript(rawScript: String): String {

@@ -130,7 +130,9 @@ class DjTtsEngine(private val context: Context) {
 
         try {
             val tts = offlineTts ?: return@withContext null
-            val audio: GeneratedAudio = tts.generate(text, speakerId, speed)
+            val phoneticText = DjPhonetics.applyPhonetics(context, text)
+            Log.d(TAG, "Kokoro TTS synthesizing: '$phoneticText' (original: '$text')")
+            val audio: GeneratedAudio = tts.generate(phoneticText, speakerId, speed)
             if (audio.samples.isEmpty()) {
                 Log.w(TAG, "TTS generated 0 audio samples.")
                 return@withContext null

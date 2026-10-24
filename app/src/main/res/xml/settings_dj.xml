@@ -60,6 +60,12 @@
         android:title="@string/settings_dj_voice_title"
         app:useSimpleSummaryProvider="true" />
 
+    <EditTextPreference
+        android:dialogTitle="@string/settings_dj_pronunciation_title"
+        android:key="dj_custom_pronunciations"
+        android:summary="@string/settings_dj_pronunciation_summary"
+        android:title="@string/settings_dj_pronunciation_title" />
+
     <Preference
         android:key="dj_test_speech"
         android:summary="@string/settings_dj_test_speech_summary"

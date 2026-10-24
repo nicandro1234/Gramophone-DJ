@@ -1328,4 +1328,6 @@ supporting local search. This string is displayed in the search bar when using G
     <string name="settings_dj_ducking_summary">Atenuación de la música mientras habla Livi</string>
     <string name="settings_dj_voice_title">Voz de Livi</string>
     <string name="settings_dj_voice_summary">Elegí la voz para las intervenciones</string>
+    <string name="settings_dj_pronunciation_title">Pronunciation Dictionary</string>
+    <string name="settings_dj_pronunciation_summary">Customize pronunciation for foreign/English names (e.g. Queen=Cuín, The Weeknd=De Güikend)</string>
 </resources>
