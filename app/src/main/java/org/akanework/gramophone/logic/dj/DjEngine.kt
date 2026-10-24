@@ -258,15 +258,15 @@ class DjEngine(
             Log.d(TAG, "onPlayWhenReadyChanged: paused on $currentPausedSongId. Speech paused.")
         } else {
             // User resumed playback
-            if (isCurrentlyPaused && currentPlayingSongId == currentPausedSongId && currentPlayingSongId != null) {
-                isCurrentlyPaused = false
-                currentPausedSongId = null
-                Log.d(TAG, "onPlayWhenReadyChanged: resumed same song ($currentPlayingSongId).")
+            val isSameSongResume = (isCurrentlyPaused && currentPlayingSongId != null && currentPlayingSongId == currentPausedSongId && lastIntervenedSongId == currentPlayingSongId)
+            isCurrentlyPaused = false
+            currentPausedSongId = null
+
+            if (isSameSongResume) {
+                Log.d(TAG, "onPlayWhenReadyChanged: resumed same song ($currentPlayingSongId). Already intervened.")
                 currentPlayingSongId?.let { schedulePrefetchWatcher(it) }
                 return
             }
-            isCurrentlyPaused = false
-            currentPausedSongId = null
 
             // If playback started and this track hasn't had an intervention yet, use pre-warmed speech over the intro!
             val player = playerProvider()
@@ -291,6 +291,19 @@ class DjEngine(
                         fallbackText = cached.script
                     ) {
                         cached.audioFile?.let { try { it.delete() } catch (_: Exception) {} }
+                    }
+                } else {
+                    val upcomingInfos = listOf(currentItem.toDjSongInfo())
+                    val theme = resolveThemeForSong(currentItem)
+                    lastIntervenedSongId = currentRawId
+                    songsSinceIntervention = 0
+                    activeInterventionJob = scope.launch {
+                        executeIntervention(
+                            theme = theme,
+                            upcomingSongs = upcomingInfos,
+                            previousSong = null,
+                            wasPreviousSongListened = false
+                        )
                     }
                 }
                 schedulePrefetchWatcher(currentRawId)
@@ -424,17 +437,12 @@ class DjEngine(
         currentSongStartTimeMs = now
         currentPlayingSongInfo = currentMediaItem.toDjSongInfo()
 
-        val isPlaying = isPlaybackActive()
-        isCurrentlyPaused = !isPlaying
-
-        // CRITICAL: If playback is not active (e.g. app opened and queue restored while paused),
-        // DO NOT intervene! Keep prewarm in background until user presses play.
-        if (!isPlaying) {
-            Log.d(TAG, "onSongTransition: player is not playing (paused/idle). Keeping prewarm in background.")
+        val player = playerProvider()
+        val isColdStart = (reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED && player?.isPlaying != true && player?.playWhenReady != true)
+        if (isColdStart) {
+            Log.d(TAG, "onSongTransition: ignoring cold start playlist restore while not playing.")
             return
         }
-
-        currentPausedSongId = null
 
         // Ensure blocks exist
         if (_currentBlocks.value.isEmpty()) {
@@ -488,7 +496,7 @@ class DjEngine(
 
         if (shouldIntervene && currentRawId != lastIntervenedSongId) {
 
-            if (cached != null && cached.targetSongId == currentRawId) {
+            if (cached != null && (cached.targetSongId == currentRawId || (isFirstSongSession && cached.targetSongId == "initial"))) {
                 // INSTANT PLAYBACK FROM PREFETCH CACHE (0 ms latency)
                 Log.i(TAG, "HIT PREFETCH CACHE for song $currentRawId! Starting instant DJ speech.")
                 prefetchedIntervention = null
@@ -523,7 +531,7 @@ class DjEngine(
                 if (debounceMs > 0L) {
                     delay(debounceMs)
                 }
-                if (!isActive || currentPlayingSongId != currentRawId || isCurrentlyPaused) return@launch
+                if (!isActive || currentPlayingSongId != currentRawId) return@launch
 
                 val upcomingInfos = listOf(currentMediaItem.toDjSongInfo())
                 executeIntervention(
@@ -679,6 +687,23 @@ class DjEngine(
         wasPreviousSongListened: Boolean = true
     ) {
         cancelAllActiveTasks()
+
+        val cached = prefetchedIntervention
+        val firstRawId = currentSong?.let { parseQueueTitle(it).first }
+        if (cached != null && (firstRawId == null || cached.targetSongId == firstRawId || cached.targetSongId == "initial")) {
+            Log.i(TAG, "HIT PRE-WARMED CACHE in triggerInterventionForBlock! Starting instant DJ speech.")
+            prefetchedIntervention = null
+            _lastSpeechScript.value = cached.script
+            duckingCoordinator.prepareForIntervention()
+            duckingCoordinator.playInterventionWithDucking(
+                audioFile = cached.audioFile,
+                fallbackText = cached.script
+            ) {
+                cached.audioFile?.let { try { it.delete() } catch (_: Exception) {} }
+            }
+            return
+        }
+
         activeInterventionJob = scope.launch {
             val songList = if (currentSong != null) {
                 val currentRawId = parseQueueTitle(currentSong).first
@@ -730,7 +755,7 @@ class DjEngine(
         wasPreviousSongListened: Boolean = true
     ) = withContext(Dispatchers.IO) {
         try {
-            if (!coroutineContext.isActive || isCurrentlyPaused) return@withContext
+            if (!coroutineContext.isActive) return@withContext
 
             // 1. Generate Script
             val script = scriptGenerator.generateSpeech(
@@ -739,14 +764,14 @@ class DjEngine(
                 previousSong = previousSong,
                 wasPreviousSongListened = wasPreviousSongListened
             )
-            if (!coroutineContext.isActive || isCurrentlyPaused) return@withContext
+            if (!coroutineContext.isActive) return@withContext
 
             _lastSpeechScript.value = script
             Log.i(TAG, "Generated DJ Script: $script")
 
             // 2. Synthesize Audio via Kokoro TTS (or null if weights missing)
             val audioFile = ttsEngine.synthesizeToWavFile(script)
-            if (!coroutineContext.isActive || isCurrentlyPaused) {
+            if (!coroutineContext.isActive) {
                 audioFile?.delete()
                 return@withContext
             }

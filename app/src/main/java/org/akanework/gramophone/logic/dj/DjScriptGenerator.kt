@@ -2,6 +2,7 @@ package org.akanework.gramophone.logic.dj
 
 import android.content.Context
 import android.util.Log
+import androidx.preference.PreferenceManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -133,19 +134,24 @@ class DjScriptGenerator(
         previousSong: DjSongInfo? = null,
         wasPreviousSongListened: Boolean = true
     ): String = withContext(Dispatchers.IO) {
-        val apiKey = apiKeyProvider()?.trim()
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val apiKey = apiKeyProvider()?.trim()?.takeIf { it.isNotBlank() }
+            ?: prefs.getString("deepseek_api_key", null)?.trim()
         if (apiKey.isNullOrBlank()) {
             Log.d(TAG, "No API key configured, using offline template generator.")
             return@withContext generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong, wasPreviousSongListened)
         }
 
         val isOpenCode = apiKey.startsWith("oc_sk_") || apiKey.contains("opencode")
-        val endpoint = endpointProvider()?.takeIf { it.isNotBlank() }
+        val endpoint = endpointProvider()?.trim()?.takeIf { it.isNotBlank() }
+            ?: prefs.getString("dj_api_endpoint", null)?.trim()?.takeIf { it.isNotBlank() }
             ?: if (isOpenCode) OPENCODE_BASE_URL else DIRECT_DEEPSEEK_URL
 
-        val rawModel = modelProvider()?.takeIf { it.isNotBlank() }
+        val rawModel = modelProvider()?.trim()?.takeIf { it.isNotBlank() }
+            ?: prefs.getString("dj_api_model", null)?.trim()?.takeIf { it.isNotBlank() }
         val model = if (rawModel.isNullOrBlank() || rawModel == "custom") {
-            if (isOpenCode) DEFAULT_OPENCODE_MODEL else DEFAULT_DEEPSEEK_MODEL
+            val custom = prefs.getString("dj_api_model_custom", null)?.trim()
+            if (!custom.isNullOrBlank()) custom else if (isOpenCode) DEFAULT_OPENCODE_MODEL else DEFAULT_DEEPSEEK_MODEL
         } else {
             rawModel
         }
