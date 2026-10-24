@@ -270,6 +270,7 @@ class FullBottomSheet
     private val bottomSheetTimerButton: MaterialButton
     private val bottomSheetPlaybackSpeedButton: MaterialButton
     private val bottomSheetDjButton: MaterialButton?
+    private val bottomSheetDjMoodButton: MaterialButton?
     private val bottomSheetFavoriteButton: MaterialButton
     val bottomSheetLyricButton: MaterialButton
     private val bottomSheetFullSeekBar: SeekBar
@@ -298,6 +299,7 @@ class FullBottomSheet
         bottomSheetTimerButton = findViewById(R.id.timer)
         bottomSheetPlaybackSpeedButton = findViewById(R.id.playback_speed)
         bottomSheetDjButton = findViewById(R.id.dj_mode_button)
+        bottomSheetDjMoodButton = findViewById(R.id.dj_mood_button)
         bottomSheetFavoriteButton = findViewById(R.id.favor)
         bottomSheetPlaylistButton = findViewById(R.id.playlist)
         bottomSheetLyricButton = findViewById(R.id.lyrics)
@@ -519,7 +521,7 @@ class FullBottomSheet
             )
 
             if (next) {
-                Toast.makeText(context, "🎙️ Modo DJ Livi activado", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "🎧 Modo DJ Livi activado", Toast.LENGTH_SHORT).show()
                 activity.lifecycleScope.launch {
                     val songs = activity.reader.songListFlow.first()
                     djEngine.startDjSession(activity.getPlayer(), songs)
@@ -533,6 +535,11 @@ class FullBottomSheet
         bottomSheetDjButton?.setOnLongClickListener {
             context.startActivity(Intent(context, DjSettingsActivity::class.java))
             true
+        }
+
+        bottomSheetDjMoodButton?.setOnClickListener { v ->
+            ViewCompat.performHapticFeedback(v, HapticFeedbackConstantsCompat.CONTEXT_CLICK)
+            showDjMoodDialog()
         }
 
         bottomSheetPlaybackSpeedButton.setOnClickListener {
@@ -716,16 +723,51 @@ class FullBottomSheet
         }
     }
 
-        fun updateDjState() {
+    fun updateDjState() {
         val enabled = prefs.getBoolean("dj_mode_enabled", false)
         bottomSheetDjButton?.isChecked = enabled
         val activeColor = MaterialColors.getColor(this, androidx.appcompat.R.attr.colorPrimary)
         val inactiveColor = MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface)
         bottomSheetDjButton?.iconTint = ColorStateList.valueOf(if (enabled) activeColor else inactiveColor)
+
+        val currentMood = prefs.getString("dj_mood", "classic") ?: "classic"
+        val isCustomMood = currentMood != "classic"
+        bottomSheetDjMoodButton?.iconTint = ColorStateList.valueOf(if (isCustomMood) activeColor else inactiveColor)
+    }
+
+    private fun showDjMoodDialog() {
+        val moods = listOf(
+            Triple("classic", "DJ Clásico (Predeterminado)", "Selección equilibrada según tu música y hora actual."),
+            Triple("party", "DJ Fiesta", "Ritmo arriba, alegre, alta energía para bailar y festejar."),
+            Triple("chill", "DJ Reunión Chill", "Música relajada y distendida, ideal de fondo para charlar."),
+            Triple("metal", "DJ Metalero", "Pura potencia, guitarras pesadas, metal y rock crudo."),
+            Triple("electro", "DJ Electro", "Electrónica, beats de club, synthwave y dance envolvente."),
+            Triple("morning", "DJ Mañana Energética", "Vibra fresca y motivadora para arrancar el día."),
+            Triple("night", "DJ Noche / Trasnoche", "Atmósfera nocturna, relajada o introspectiva.")
+        )
+        val currentMood = prefs.getString("dj_mood", "classic") ?: "classic"
+        val selectedIndex = moods.indexOfFirst { it.first == currentMood }.coerceAtLeast(0)
+        val items = moods.map { "${it.second}\n${it.third}" }.toTypedArray()
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(context)
+            .setTitle("Mood de DJ Livi")
+            .setSingleChoiceItems(items, selectedIndex) { dialog, which ->
+                val chosen = moods[which]
+                prefs.edit().putString("dj_mood", chosen.first).apply()
+                updateDjState()
+
+                val service = GramophonePlaybackService.instanceForWidgetAndLyricsOnly
+                service?.djEngine?.prepareNextIntervention()
+
+                Toast.makeText(context, "Mood: ${chosen.second.split(" (")[0]}", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun refreshSettings(key: String?) {
-        if (key == null || key == "dj_mode_enabled") {
+        if (key == null || key == "dj_mode_enabled" || key == "dj_mood") {
             updateDjState()
         }
         if (key == null || key == "default_progress_bar") {

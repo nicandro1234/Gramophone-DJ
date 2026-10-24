@@ -28,30 +28,26 @@ class DjScriptGenerator(
 
         private const val DJ_SYSTEM_PROMPT =
             "Eres Livi, la DJ y curadora musical personal de este reproductor. " +
-            "Tienes un estilo conversacional, relajado, maduro y cercano, como una amiga que sabe mucho de música (inspirado en el tono auténtico y sutil de Spotify AI DJ). " +
-            "Tu misión es hacer una intervención muy breve de 15 a 22 palabras presentando el bloque o la canción con total naturalidad. " +
-            "REGLAS ESTRICTAS DE ESTILO Y FONÉTICA: " +
-            "1. BREVEDAD ABSOLUTA: Alrededor de 15 a 22 palabras (1 o 2 oraciones breves). No te extiendas. " +
-            "2. TONO AUTÉNTICO Y RELAJADO: Habla como alguien real y tranquilo. CERO clichés de locutor comercial. PROHIBIDO usar palabras como 'rolón', 'temazo', 'joyita', 'qué chulada', 'vámonos tendidos', 'échale oído', 'con todo el power', 'en cabina', 'en sintonía', 'súbele al volumen', 'pónganle oreja' o 'qué buena rola'. " +
-            "3. ENFOQUE EN LA VIBRA O EL ARTISTA: Menciona el estilo, la época, o por qué encaja este momento musical (ej: 'Cambiamos un poco la onda...', 'Seguimos con algo más tranquilo...', 'Un clásico de los 80...'). " +
-            "4. CANCIÓN ANTERIOR: Si se indica que la canción previa fue escuchada, puedes conectar sutilmente con ella; si no se menciona o fue saltada, ve DIRECTO al tema que entra sin mirar atrás. " +
-            "5. ADAPTACIÓN FONÉTICA INTEGRAL AL ESPAÑOL (MANDATORIO): El sintetizador de voz es un motor TTS en español puro. Si el título o el artista son en inglés u otro idioma extranjero, DEBES TRANSCRIBIR EL TÍTULO COMPLETO Y EL ARTISTA COMPLETO a fonética escrita en español, de forma integral y natural: " +
-            "   - Regla de la 'W': Transcribe SIEMPRE con 'U' o 'Hu' (NUNCA uses 'Gü', que suena gutural y tosco). Ejemplos: 'World' -> 'Uerld' (o 'Uorld'), 'Weekend' -> 'Uikend', 'Will' -> 'Uil', 'One' -> 'Uan', 'War' -> 'Uor'. " +
-            "   - Regla de la 'S' inicial en inglés: NO agregues una 'E' adelante; escribe 'S' o 'St' (ej: 'Stars' -> 'Stars', 'Silence' -> 'Sáilens', 'Space' -> 'Speis', NUNCA 'Estars' ni 'Espeis'). " +
+            "Tienes un estilo conversacional, espontáneo, relajado y cercano, como una amiga melómana que conoce muy bien los gustos del oyente (inspirado en el estilo auténtico y variado de Spotify AI DJ). " +
+            "Tu misión es acompañar al oyente con intervenciones breves, frescas y variadas. No sigas una fórmula fija ni te repitas. " +
+            "LIBERTAD CREATIVA Y VARIEDAD: " +
+            "Tienes total libertad para elegir cómo abordar cada intervención según la música, el momento del día y la vibra del set: " +
+            "- Puedes comentar la vibra, la energía o el cambio de ritmo del set que entra. " +
+            "- Puedes tirar un detalle fresco o curioso del artista o la canción. " +
+            "- Puedes conectar con lo que acaba de sonar si se escuchó completo. " +
+            "- Puedes hablar del mix como un viaje o simplemente tirar una frase con onda y dar paso directo a la música. " +
+            "- Sorprende con giros de lenguaje naturales, sin plantillas rígidas ni monotonía. " +
+            "REGLAS TÉCNICAS MANDATORIAS: " +
+            "1. BREVEDAD: 1 o 2 oraciones breves (alrededor de 15 a 30 palabras). Es una locución rápida sobre el ducking, no un podcast. " +
+            "2. CERO CLICHÉS COMERCIALES: Habla como alguien real. Jamás uses frases de radio barata como 'rolón', 'temazo', 'joyita', 'qué chulada', 'échale oído', 'con todo el power', 'en sintonía', 'súbele al volumen', 'pónganle oreja'. " +
+            "3. ADAPTACIÓN FONÉTICA INTEGRAL AL ESPAÑOL (MANDATORIO): El sintetizador de voz es un motor TTS en español puro. Si el título o el artista son en inglés u otro idioma extranjero, DEBES TRANSCRIBIR EL TÍTULO COMPLETO Y EL ARTISTA COMPLETO al 100% a fonética escrita en español (pronunciación figurada): " +
+            "   - NO transcribas solo palabras aisladas; TODA la frase del título y el nombre del artista deben quedar en fonética española. " +
+            "   - Regla de la 'W': Transcribe SIEMPRE con 'U' o 'Hu' (NUNCA uses 'Gü', que suena tosco). Ejemplos: 'World' -> 'Uerld', 'Weekend' -> 'Uikend', 'Will' -> 'Uil', 'One' -> 'Uan', 'War' -> 'Uor'. " +
+            "   - Regla de la 'S' inicial en inglés: NO agregues una 'E' adelante (ej: 'Stars' -> 'Stars', 'Silence' -> 'Sáilens', 'Space' -> 'Speis', jamás 'Estars'). " +
             "   - Suaviza consonantes finales complejas: 'Ends' -> 'Ens', 'Night' -> 'Nait', 'Echo' -> 'Éco', 'Loved' -> 'Lovd'. " +
-            "   - Ejemplos de títulos: 'Till the World Ends' -> 'Til de Uerld Ens'; 'Silence the Echo' -> 'Sáilens di Éko'; 'She Will Be Loved' -> 'Shi Uil Bi Lovd'; 'Smells Like Teen Spirit' -> 'Smels Laik Tin Spírit'. " +
-            "   - Ejemplos de artistas: 'I See Stars' -> 'Ai Si Stars'; 'Born Of Osiris' -> 'Born of Osáiris'; 'The Weeknd' -> 'De Uikend'; 'Bring Me The Horizon' -> 'Bring Mi De Joraizon'; 'Maroon 5' -> 'Marún Faiv'. " +
+            "   - Ejemplos holísticos: 'Till the World Ends' de 'Britney Spears' -> 'Til de Uerld Ens' de 'Brítni Spirs'; 'I See Stars' -> 'Ai Si Stars'; 'Born Of Osiris' -> 'Born of Osáiris'; 'She Will Be Loved' de 'Maroon 5' -> 'Shi Uil Bi Lovd' de 'Marún Faiv'. " +
             "   - Si el título o artista ya están en español, déjalos idénticos. " +
-            "6. FORMATO LIMPIO: Escribe ÚNICAMENTE las palabras exactas que vas a decir al aire. Sin comillas, sin asteriscos, sin emojis, sin prefijos como 'Livi:'."
-
-        private val CREATIVE_ANGLES = listOf(
-            "Comenta el cambio de vibra o ritmo de forma relajada y cómplice.",
-            "Presenta el tema destacando la época o el género con naturalidad.",
-            "Haz una entrada directa al grano con actitud tranquila y buen gusto.",
-            "Conecta sutilmente con el artista y lo que transmite la canción.",
-            "Menciona que es un clásico o una canción ideal para este momento.",
-            "Da una transición fluida y fresca sin rodeos."
-        )
+            "4. FORMATO LIMPIO: Escribe ÚNICAMENTE las palabras exactas que vas a decir al aire. Sin reflexiones, sin análisis de palabras, sin notas de traducción, sin comillas, sin prefijos."
 
         suspend fun fetchModels(
             apiKey: String?,
@@ -172,8 +168,8 @@ class DjScriptGenerator(
                         put("content", userPrompt)
                     })
                 })
-                put("temperature", 0.8)
-                put("max_tokens", 512)
+                put("temperature", 0.85)
+                put("max_tokens", 1024)
             }
 
             val body = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
@@ -202,9 +198,9 @@ class DjScriptGenerator(
                 if (choices != null && choices.length() > 0) {
                     val choice = choices.getJSONObject(0)
                     val msg = choice.optJSONObject("message")
+                    // Strictly retrieve final generated assistant content. NEVER fall back to reasoning_content (thoughts)!
                     val raw = msg?.optString("content")?.takeIf { it.isNotBlank() }
                         ?: choice.optString("text").takeIf { it.isNotBlank() }
-                        ?: msg?.optString("reasoning_content")?.takeIf { it.isNotBlank() }
 
                     if (!raw.isNullOrBlank()) {
                         val clean = sanitizeScript(raw)
@@ -213,7 +209,7 @@ class DjScriptGenerator(
                             return@withTimeoutOrNull phonetic
                         }
                     } else {
-                        Log.w(TAG, "OpenCode returned choice without content: $choice")
+                        Log.w(TAG, "OpenCode returned choice without content (finish_reason=${choice.optString("finish_reason")}): $choice")
                     }
                 } else {
                     Log.w(TAG, "OpenCode returned no choices in payload: $responseBody")
@@ -240,20 +236,25 @@ class DjScriptGenerator(
         if (combined.any { it in '\u4e00'..'\u9fa5' || it in '\u3040'..'\u30ff' || it in '\uac00'..'\ud7af' }) {
             return "Asiático (Japonés/Coreano/Chino)"
         }
-        // Obvious Spanish words or accented characters
-        val spanishMarkers = listOf("á", "é", "í", "ó", "ú", "ñ", "amor", "corazon", "noche", "vida", "fuego", "cancion", "sol", "luna", "para", "por", "con", "sin", "los", "las", "del", "una", "mundo", "tiempo", "cielo", "ojos", "beso", "musica")
-        if (spanishMarkers.any { combined.contains(it) }) {
+        // Strong Spanish indicators
+        val spanishMarkers = listOf(
+            "á", "é", "í", "ó", "ú", "ñ", "amor", "corazon", "noche", "vida", "fuego", "cancion",
+            "sol", "luna", "para", "por", "con", "sin", "los", "las", "del", "una", "mundo",
+            "tiempo", "cielo", "ojos", "beso", "musica", "quiero", "volver", "siempre", "nunca",
+            "adios", "hola", "hombre", "mujer", "alma", "suave", "baila", "ritmo", "corazón", "canción"
+        )
+        if (spanishMarkers.any { Regex("\\b$it\\b").containsMatchIn(combined) || combined.contains("ñ") || combined.contains("á") || combined.contains("í") || combined.contains("ó") || combined.contains("ú") }) {
             return "Español"
         }
-        val frenchMarkers = listOf("le", "la", "les", "du", "des", "mon", "amour", "vie", "avec", "pour", "dans")
+        val frenchMarkers = listOf("le", "la", "les", "du", "des", "mon", "amour", "vie", "avec", "pour", "dans", "toujours", "ciel")
         if (frenchMarkers.any { Regex("\\b$it\\b").containsMatchIn(combined) }) {
             return "Francés"
         }
-        val germanMarkers = listOf("der", "die", "das", "und", "nicht", "ich", "du", "mit")
+        val germanMarkers = listOf("der", "die", "das", "und", "nicht", "ich", "du", "mit", "nacht", "feuer")
         if (germanMarkers.any { Regex("\\b$it\\b").containsMatchIn(combined) }) {
             return "Alemán"
         }
-        return "Inglés / Extranjero"
+        return "Inglés (no nativo en español)"
     }
 
     private fun buildUserPrompt(
@@ -263,26 +264,73 @@ class DjScriptGenerator(
         wasPreviousSongListened: Boolean
     ): String {
         val nextSong = upcomingSongs.firstOrNull()
-        val angle = CREATIVE_ANGLES.random()
+        val otherUpcoming = upcomingSongs.drop(1).take(3)
         val sb = StringBuilder()
-        sb.append("Estás presentando música de forma relajada y cómplice. ")
+
+        // Time of day detection
+        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        val timeOfDay = when (hour) {
+            in 6..11 -> "Mañana (inicio de jornada, vibra fresca y luminosa)"
+            in 12..18 -> "Tarde (tarde activa, ritmo continuo)"
+            in 19..23 -> "Noche (ambiente nocturno, distensión y disfrute)"
+            else -> "Madrugada (calma o trasnoche musical)"
+        }
+
+        // Active Mood from user preference
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val djMood = prefs.getString("dj_mood", "classic") ?: "classic"
+
+        sb.append("Contexto para Livi:\n")
+        sb.append("- Momento del día actual: $timeOfDay.\n")
+
         if (previousSong != null && wasPreviousSongListened) {
             val prevLang = detectLanguage(previousSong.title, previousSong.artist, previousSong.genre)
-            sb.append("El oyente acaba de terminar de escuchar: '${previousSong.title}' de ${previousSong.artist} (idioma/origen: $prevLang). Puedes hacer una conexión breve y sutil. ")
+            sb.append("- Canción previa escuchada: '${previousSong.title}' de ${previousSong.artist} ($prevLang).\n")
         } else {
-            sb.append("Presenta directamente el nuevo tema sin mencionar canciones anteriores (el oyente estuvo cambiando pistas). ")
+            sb.append("- El oyente estuvo cambiando canciones (no menciones el tema previo).\n")
         }
+
+        sb.append("- Set musical / Bloque: '$blockTheme'.\n")
+
         if (nextSong != null) {
             val nextLang = detectLanguage(nextSong.title, nextSong.artist, nextSong.genre)
-            sb.append("Siguiente tema: '${nextSong.title}' de ${nextSong.artist}. ")
-            sb.append("Idioma/origen detectado: $nextLang. ")
+            sb.append("- Canción con la que abre: '${nextSong.title}' de ${nextSong.artist}.\n")
+            sb.append("- IDIOMA ORIGINAL DETECTADO DE PRIMERA MANO: $nextLang.\n")
             if (nextLang != "Español") {
-                sb.append("FONÉTICA COMPLETA AL ESPAÑOL: Dado que el tema está en $nextLang, transcribe TODO el título y TODO el artista a fonética española integral para que el TTS lo lea con naturalidad (ej: 'Til de Uerld Ens' de 'Ai Si Stars', 'Sáilens di Éko' de 'Born of Osáiris'). Recuerda: 'W' se escribe con 'U' (ej: Uerld, Uikend, Uan), jamás 'Gü'. ")
+                sb.append("  REGLA DE FONÉTICA COMPLETA OBLIGATORIA:\n")
+                sb.append("  El tema y el artista están en $nextLang. DEBES TRANSCRIBIR TODO EL TÍTULO Y TODO EL NOMBRE DEL ARTISTA AL 100% EN FONÉTICA ESPAÑOLA (pronunciación figurada).\n")
+                sb.append("  NO transcribas solo palabras aisladas ni dejes partes en grafía extranjera: CADA palabra del título ('${nextSong.title}') y del artista ('${nextSong.artist}') debe escribirse tal cual suena fonéticamente en español para que el sintetizador TTS en español puro la pronuncie perfecta.\n")
+                sb.append("  * Regla de la 'W': Transcribe SIEMPRE con 'U' (ej: 'World' -> 'Uerld', 'Weekend' -> 'Uikend', 'Will' -> 'Uil', 'One' -> 'Uan', 'War' -> 'Uor'), JAMÁS con 'Gü'.\n")
+                sb.append("  * Regla de la 'S' inicial en inglés: NO antepongas una 'E' (ej: 'Stars' -> 'Stars', 'Space' -> 'Speis', 'Silence' -> 'Sáilens', jamás 'Estars').\n")
+                sb.append("  * Suaviza consonantes finales: 'Ends' -> 'Ens', 'Night' -> 'Nait', 'Echo' -> 'Éco', 'Loved' -> 'Lovd'.\n")
+                sb.append("  * Acentúa con tilde la sílaba tónica inglesa si ayuda a la entonación (ej: 'Brítni Spirs', 'Ai Si Stars', 'Born of Osáiris', 'Marún Faiv').\n")
+            } else {
+                sb.append("  (Idioma español: mantén el título y artista exactamente iguales sin alterar).\n")
             }
         }
-        sb.append("Bloque/onda: $blockTheme. ")
-        sb.append("Enfoque: $angle ")
-        sb.append("Extensión: MÁXIMO 15 a 22 palabras. Sencillo, natural y con buena vibra.")
+
+        if (otherUpcoming.isNotEmpty()) {
+            val otherArtists = otherUpcoming.map { it.artist }.distinct().filter { it != nextSong?.artist }
+            if (otherArtists.isNotEmpty()) {
+                sb.append("- Artistas que siguen en este set: ${otherArtists.joinToString(", ")}.\n")
+            }
+        }
+
+        // Specific Mood Directives (only injected if user selected a custom mood)
+        val moodDirective = when (djMood) {
+            "party" -> "PARÁMETRO PRIMORDIAL - MODO DJ FIESTA: El usuario está de fiesta. Mantén una vibra alta, energética, alegre y motivadora para bailar y festejar."
+            "chill" -> "PARÁMETRO PRIMORDIAL - MODO DJ REUNIÓN CHILL: El ambiente es una reunión relajada con amigos. Tono suave, tranquilo, cálido, música de fondo que acompaña la charla sin estridencias."
+            "metal" -> "PARÁMETRO PRIMORDIAL - MODO DJ METALERO: Actitud metalera y rockera auténtica. Pura potencia, guitarras pesadas, energía cruda y visceral."
+            "electro" -> "PARÁMETRO PRIMORDIAL - MODO DJ ELECTRO: Vibra electrónica de pista y club nocturno. Ritmos sintéticos, beats envolventes y actitud dance."
+            "morning" -> "PARÁMETRO PRIMORDIAL - MODO DJ MAÑANA: Energía luminosa, fresca y motivadora para arrancar el día con el mejor ánimo."
+            "night" -> "PARÁMETRO PRIMORDIAL - MODO DJ NOCHE: Atmósfera nocturna, envolvente, noctámbula y profunda."
+            else -> null
+        }
+        if (moodDirective != null) {
+            sb.append("\n$moodDirective\n")
+        }
+
+        sb.append("\nMisión: Preséntale la música al oyente con total libertad y espontaneidad. Puedes enfocarte en la vibra general, en los artistas, en un detalle curioso o en una transición ágil según el momento del día y el ambiente. No uses fórmulas fijas; sé auténtica, variada y relajada (15-30 palabras). Escribe únicamente lo que vas a decir al aire:")
         return sb.toString()
     }
 
@@ -297,22 +345,23 @@ class DjScriptGenerator(
         val title = firstSong.title
         val artist = firstSong.artist
         val prev = if (wasPreviousSongListened) previousSong?.title else null
+        val otherArtists = upcomingSongs.drop(1).take(2).map { it.artist }.distinct().filter { it != artist }
+        val upcomingHint = if (otherArtists.isNotEmpty()) ", y más adelante suena ${otherArtists.first()}" else ""
 
         val templates = if (prev != null) {
             listOf(
-                "Después de escuchar a $prev, seguimos con $title de $artist.",
-                "Buena vibra con lo que sonó recién. Ahora pasamos a $title con $artist.",
-                "Manteniendo el ritmo tras $prev, aquí suena $title de $artist.",
-                "Seguimos sumando calidad a la playlist con $artist y su tema $title."
+                "Dejamos atrás a $prev y nos metemos en $blockTheme. Arrancamos con $title de $artist$upcomingHint.",
+                "Buena vibra con lo que sonó recién. Se viene $blockTheme: abrimos con $title de $artist.",
+                "Cambiamos de ritmo para meternos en $blockTheme. Suena $title de $artist$upcomingHint.",
+                "Seguimos sumando calidad. Momento de $blockTheme con $artist y su tema $title."
             )
         } else {
             listOf(
-                "Cambiamos un poco la onda. Vamos a escuchar a $artist con $title.",
-                "Seguimos con buena música para acompañarte. Esto es $title de $artist.",
-                "Para este momento, una gran canción de $artist: $title.",
-                "Nos quedamos con este ritmo. Aquí suena $title de $artist.",
-                "Tiempo de disfrutar un buen tema. Se viene $artist con $title.",
-                "Un toque de $blockTheme para el momento: $title de $artist."
+                "Arrancamos un nuevo set: $blockTheme. Esto es $title de $artist$upcomingHint.",
+                "Nos metemos en $blockTheme para acompañarte. Suena $title de $artist.",
+                "Para este momento, $blockTheme: abrimos cancha con $title de $artist.",
+                "Tiempo de disfrutar este mix de $blockTheme. Se viene $artist con $title.",
+                "Seguimos con buen ritmo en $blockTheme: suena $title de $artist."
             )
         }
         val selected = templates.random()

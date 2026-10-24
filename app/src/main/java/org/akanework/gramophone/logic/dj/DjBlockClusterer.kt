@@ -11,7 +11,11 @@ class DjBlockClusterer {
 
     val blockSize: Int = DEFAULT_BLOCK_SIZE
 
-    fun clusterTracks(songs: List<MediaItem>, blockSize: Int = DEFAULT_BLOCK_SIZE): List<DjBlock> {
+    fun clusterTracks(
+        songs: List<MediaItem>,
+        blockSize: Int = DEFAULT_BLOCK_SIZE,
+        mood: String = "classic"
+    ): List<DjBlock> {
         if (songs.isEmpty()) return emptyList()
 
         val blocks = mutableListOf<DjBlock>()
@@ -109,8 +113,27 @@ class DjBlockClusterer {
             )
         }
 
-        // Shuffle blocks order so every DJ session is a fresh and unique sequence!
+        // Shuffle blocks order so every DJ session is a fresh and unique sequence
         blocks.shuffle()
+
+        // If user picked a specific mood, prioritize relevant thematic blocks to the front!
+        if (mood != "classic") {
+            val moodKeywords = when (mood) {
+                "metal" -> listOf("metal", "rock", "core", "heavy", "punk", "hard")
+                "electro" -> listOf("electro", "dance", "synth", "house", "techno", "edm", "trance", "club")
+                "chill" -> listOf("chill", "acoustic", "lofi", "ambient", "indie", "jazz", "soul", "folk")
+                "party" -> listOf("party", "dance", "pop", "latin", "funk", "disco", "fiesta")
+                "morning" -> listOf("pop", "indie", "acoustic", "folk", "reggae")
+                "night" -> listOf("metal", "electro", "synth", "rock", "ambient", "night")
+                else -> emptyList()
+            }
+            if (moodKeywords.isNotEmpty()) {
+                blocks.sortByDescending { block ->
+                    val blockText = "${block.title} ${block.themeDescription} ${block.songs.joinToString { it.mediaMetadata.genre?.toString() ?: "" }}".lowercase()
+                    moodKeywords.count { blockText.contains(it) }
+                }
+            }
+        }
 
         return blocks
     }

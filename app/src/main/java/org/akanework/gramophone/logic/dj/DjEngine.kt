@@ -161,7 +161,12 @@ class DjEngine(
                         cached.audioFile?.let { try { it.delete() } catch (_: Exception) {} }
                     }
                 } else if (lastIntervenedSongId == null) {
-                    val upcomingInfos = listOf(currentItem.toDjSongInfo())
+                    val count = player.mediaItemCount
+                    val cur = player.currentMediaItemIndex
+                    val end = (cur + 4).coerceAtMost(count - 1)
+                    val upcomingInfos = if (count > 0) {
+                        (cur..end).map { player.getMediaItemAt(it).toDjSongInfo() }
+                    } else listOf(currentItem.toDjSongInfo())
                     val theme = resolveThemeForSong(currentItem)
                     lastIntervenedSongId = currentRawId
                     songsSinceIntervention = 0
@@ -194,23 +199,37 @@ class DjEngine(
             try {
                 // Wait briefly for service and player to settle
                 delay(1200L)
-                val targetSong = withContext(Dispatchers.Main) {
-                    val player = playerProvider() ?: return@withContext null
+                val (targetSong, upcomingSlice) = withContext(Dispatchers.Main) {
+                    val player = playerProvider() ?: return@withContext Pair(null, emptyList<MediaItem>())
                     try {
-                        player.currentMediaItem ?: if (player.mediaItemCount > 0) player.getMediaItemAt(0) else null
+                        val count = player.mediaItemCount
+                        if (count > 0) {
+                            val cur = player.currentMediaItemIndex.coerceIn(0, count - 1)
+                            val target = player.getMediaItemAt(cur)
+                            val end = (cur + 4).coerceAtMost(count - 1)
+                            val slice = (cur..end).map { player.getMediaItemAt(it) }
+                            Pair(target, slice)
+                        } else {
+                            Pair(null, emptyList())
+                        }
                     } catch (e: Exception) {
-                        null
+                        Pair(null, emptyList())
                     }
                 }
 
-                val songInfo = targetSong?.toDjSongInfo()
-                    ?: DjSongInfo(mediaId = "initial", title = "tu selección musical", artist = "tus artistas favoritos", album = null, genre = null, year = null)
+                val targetInfos = if (upcomingSlice.isNotEmpty()) {
+                    upcomingSlice.map { it.toDjSongInfo() }
+                } else if (targetSong != null) {
+                    listOf(targetSong.toDjSongInfo())
+                } else {
+                    listOf(DjSongInfo(mediaId = "initial", title = "tu selección musical", artist = "tus artistas favoritos", album = null, genre = null, year = null))
+                }
                 val rawId = targetSong?.let { parseQueueTitle(it).first } ?: "initial"
-                val theme = if (targetSong != null) resolveThemeForSong(targetSong) else "buena música"
+                val theme = if (targetSong != null) resolveThemeForSong(targetSong) else "buena música de tu biblioteca"
 
-                Log.d(TAG, "Pre-warming initial DJ intervention in background for: '${songInfo.title}' by ${songInfo.artist}")
+                Log.d(TAG, "Pre-warming initial DJ intervention in background for: '${targetInfos.first().title}' by ${targetInfos.first().artist} (theme='$theme')")
                 val script = scriptGenerator.generateSpeech(
-                    upcomingSongs = listOf(songInfo),
+                    upcomingSongs = targetInfos,
                     blockTheme = theme,
                     previousSong = null,
                     wasPreviousSongListened = false,
@@ -290,7 +309,12 @@ class DjEngine(
                         cached.audioFile?.let { try { it.delete() } catch (_: Exception) {} }
                     }
                 } else {
-                    val upcomingInfos = listOf(currentItem.toDjSongInfo())
+                    val count = player?.mediaItemCount ?: 0
+                    val cur = player?.currentMediaItemIndex ?: 0
+                    val end = (cur + 4).coerceAtMost(count - 1)
+                    val upcomingInfos = if (count > 0) {
+                        (cur..end).mapNotNull { player?.getMediaItemAt(it)?.toDjSongInfo() }
+                    } else listOf(currentItem.toDjSongInfo())
                     val theme = resolveThemeForSong(currentItem)
                     lastIntervenedSongId = currentRawId
                     songsSinceIntervention = 0
@@ -308,6 +332,11 @@ class DjEngine(
         }
     }
 
+    private fun getActiveMood(): String {
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        return prefs.getString("dj_mood", "classic") ?: "classic"
+    }
+
     fun setupQueue(songs: List<MediaItem>, forceRecluster: Boolean = false) {
         if (songs.isEmpty()) return
         if (!forceRecluster && _currentBlocks.value.isNotEmpty()) {
@@ -317,7 +346,7 @@ class DjEngine(
                 return
             }
         }
-        val blocks = clusterer.clusterTracks(songs)
+        val blocks = clusterer.clusterTracks(songs, mood = getActiveMood())
         _currentBlocks.value = blocks
         _activeBlockIndex.value = 0
         Log.i(TAG, "Generated ${blocks.size} DJ blocks from ${songs.size} tracks")
@@ -340,7 +369,7 @@ class DjEngine(
         lastIntervenedSongId = null
 
         // 1. Generate a fresh cluster of blocks
-        val blocks = clusterer.clusterTracks(songs)
+        val blocks = clusterer.clusterTracks(songs, mood = getActiveMood())
         _currentBlocks.value = blocks
         _activeBlockIndex.value = 0
 
@@ -385,12 +414,13 @@ class DjEngine(
         } else {
             firstBlock?.let { block ->
                 activeInterventionJob = scope.launch {
-                    val firstInfo = firstSong?.toDjSongInfo()
-                        ?: DjSongInfo("initial", "tu música", "tus artistas", null, null, null)
+                    val firstInfos = block.songs.take(5).map { it.toDjSongInfo() }.ifEmpty {
+                        listOf(DjSongInfo("initial", "tu música", "tus artistas", null, null, null))
+                    }
                     val theme = if (firstSong != null) resolveThemeForSong(firstSong) else block.title
                     val success = executeIntervention(
                         theme = theme,
-                        upcomingSongs = listOf(firstInfo),
+                        upcomingSongs = firstInfos,
                         previousSong = null,
                         wasPreviousSongListened = false
                     )
@@ -540,21 +570,25 @@ class DjEngine(
                 delay(800L)
                 if (!isActive) return@launch
 
-                val targetSong = withContext(Dispatchers.Main) {
-                    val player = playerProvider() ?: return@withContext null
+                val (targetSong, upcomingSlice) = withContext(Dispatchers.Main) {
+                    val player = playerProvider() ?: return@withContext Pair(null, emptyList<MediaItem>())
                     val count = player.mediaItemCount
-                    if (count == 0) return@withContext null
+                    if (count == 0) return@withContext Pair(null, emptyList<MediaItem>())
                     val nextIndex = (player.currentMediaItemIndex + MIN_SONGS_BETWEEN_INTERVENTIONS).coerceIn(0, count - 1)
-                    player.getMediaItemAt(nextIndex)
-                } ?: return@launch
+                    val target = player.getMediaItemAt(nextIndex)
+                    val endIndex = (nextIndex + 4).coerceAtMost(count - 1)
+                    val slice = (nextIndex..endIndex).map { player.getMediaItemAt(it) }
+                    Pair(target, slice)
+                }
+                if (targetSong == null || upcomingSlice.isEmpty()) return@launch
 
                 val targetRawId = parseQueueTitle(targetSong).first
-                val targetInfo = targetSong.toDjSongInfo()
+                val targetInfos = upcomingSlice.map { it.toDjSongInfo() }
                 val theme = resolveThemeForSong(targetSong)
 
-                Log.d(TAG, "Continuous Pipeline: Loading NEXT speech in background for '${targetInfo.title}' by ${targetInfo.artist}")
+                Log.d(TAG, "Continuous Pipeline: Loading NEXT speech for mix starting with '${targetInfos.first().title}' (${targetInfos.size} songs in block, theme='$theme')")
                 val script = scriptGenerator.generateSpeech(
-                    upcomingSongs = listOf(targetInfo),
+                    upcomingSongs = targetInfos,
                     blockTheme = theme,
                     previousSong = lastGenuineListenedSong,
                     wasPreviousSongListened = (lastGenuineListenedSong != null),
@@ -606,7 +640,11 @@ class DjEngine(
         val block = _currentBlocks.value.find { b ->
             b.songs.any { parseQueueTitle(it).first == parseQueueTitle(song).first }
         }
-        return block?.title ?: genre?.let { "un bloque de $it" } ?: artist?.let { "lo mejor de $it" } ?: "buena música"
+        val blockDesc = if (block != null) {
+            val desc = block.themeDescription.takeIf { !it.isNullOrBlank() }
+            if (desc != null) "${block.title}: $desc" else block.title
+        } else null
+        return blockDesc ?: genre?.let { "un bloque de $it" } ?: artist?.let { "lo mejor de $it" } ?: "buena música de tu biblioteca"
     }
 
     /**
@@ -671,8 +709,9 @@ class DjEngine(
             }
 
             val upcomingInfos = songList.map { it.toDjSongInfo() }
+            val theme = if (!block.themeDescription.isNullOrBlank()) "${block.title}: ${block.themeDescription}" else block.title
             executeIntervention(
-                theme = block.title,
+                theme = theme,
                 upcomingSongs = upcomingInfos,
                 previousSong = previousSong,
                 wasPreviousSongListened = wasPreviousSongListened
