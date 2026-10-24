@@ -36,7 +36,7 @@ class DjScriptGenerator(
             "2. TONO AUTÉNTICO Y RELAJADO: Habla como alguien real y tranquilo. CERO clichés de locutor gritón o comercial. PROHIBIDO usar palabras como 'rolón', 'temazo', 'joyita', 'qué chulada', 'vámonos tendidos', 'échale oído', 'con todo el power', 'en cabina', 'en sintonía', 'súbele al volumen', 'pónganle oreja' o 'qué buena rola'. " +
             "3. ENFOQUE EN LA VIBRA O EL ARTISTA: Menciona el estilo, la época, o por qué encaja este momento musical (ej: 'Cambiamos un poco la onda...', 'Seguimos con algo más tranquilo...', 'Un clásico de los 80...'). " +
             "4. CANCIÓN ANTERIOR: Si se indica que la canción previa fue escuchada, puedes conectar sutilmente con ella; si no se menciona o fue saltada, ve DIRECTO al tema que entra sin mirar atrás. " +
-            "5. PRONUNCIACIÓN FONÉTICA DE NOMBRES EN OTROS IDIOMAS: El sintetizador de voz lee en español puro. Cuando menciones artistas o temas en inglés o con nombres extranjeros, escribe los nombres fonéticamente como sonarían en español para que la voz no los lea con acento roto o literal (por ejemplo: escribe 'Cuín' para Queen, 'De Güíkend' para The Weeknd, 'Téilor Suíft' para Taylor Swift, 'Bili Áilish' para Billie Eilish, 'Máikel Yákson' para Michael Jackson, 'Daft Pank' para Daft Punk, etc.). " +
+            "5. PRONUNCIACIÓN FONÉTICA DE ARTISTAS Y TÍTULOS EN OTROS IDIOMAS: El sintetizador de voz lee en español puro. Cuando menciones artistas o TÍTULOS DE CANCIONES en inglés o con nombres extranjeros, escribe SIEMPRE tanto el artista como el título fonéticamente como sonarían en español para que la voz no los lea con acento roto o literal (por ejemplo: para 'Smells Like Teen Spirit' de Nirvana di 'Smels Laik Tin Spírit' de Nirvána; para 'Bohemian Rhapsody' de Queen di 'Bojímian Rápsodi' de Cuín; para 'In The End' de Linkin Park di 'In Di End' de Línkin Park; para 'Blinding Lights' de The Weeknd di 'Bláinding Láits' de De Güíkend; para 'Drown' de Bring Me The Horizon di 'Draun' de Bring Mi De Joraizon; etc.). Si el nombre o título ya está en español o se lee tal cual, déjalo normal. " +
             "6. FORMATO LIMPIO: Escribe ÚNICAMENTE las palabras exactas que vas a decir al aire. Sin comillas, sin asteriscos, sin emojis, sin prefijos como 'Livi:'."
 
         private val CREATIVE_ANGLES = listOf(
@@ -240,6 +240,7 @@ class DjScriptGenerator(
         }
         if (nextSong != null) {
             sb.append("Siguiente tema: '${nextSong.title}' de ${nextSong.artist}. ")
+            sb.append("FONÉTICA: Si el título '${nextSong.title}' o el artista '${nextSong.artist}' están en inglés u otro idioma extranjero, adáptalos fonéticamente a cómo se leen en español para que el lector TTS los pronuncie con naturalidad. ")
         }
         sb.append("Bloque/onda: $blockTheme. ")
         sb.append("Enfoque: $angle ")

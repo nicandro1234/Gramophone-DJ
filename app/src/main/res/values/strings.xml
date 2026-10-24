@@ -1330,4 +1330,6 @@ supporting local search. This string is displayed in the search bar when using G
     <string name="settings_dj_voice_summary">Elegí la voz para las intervenciones</string>
     <string name="settings_dj_pronunciation_title">Pronunciation Dictionary</string>
     <string name="settings_dj_pronunciation_summary">Customize pronunciation for foreign/English names (e.g. Queen=Cuín, The Weeknd=De Güikend)</string>
+    <string name="settings_dj_sync_pronunciations_title">Sync Dictionary with Music Library</string>
+    <string name="settings_dj_sync_pronunciations_summary">Scan device artists and ask OpenCode AI to generate missing pronunciations</string>
 </resources>

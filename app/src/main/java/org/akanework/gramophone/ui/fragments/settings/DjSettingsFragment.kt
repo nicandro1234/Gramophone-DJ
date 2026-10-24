@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 import org.akanework.gramophone.R
 import org.akanework.gramophone.logic.GramophonePlaybackService
 import org.akanework.gramophone.logic.dj.DjEngine
+import org.akanework.gramophone.logic.dj.DjPhoneticsSync
 import org.akanework.gramophone.logic.dj.DjScriptGenerator
 import org.akanework.gramophone.ui.fragments.BasePreferenceFragment
 import org.akanework.gramophone.ui.fragments.BaseSettingsActivity
@@ -67,6 +68,12 @@ class DjSettingsFragment : BasePreferenceFragment() {
 
         val voicePref = findPreference<ListPreference>("dj_tts_voice")
         loadAvailableVoices(voicePref, prefs)
+
+        val syncPronunciationsPref = findPreference<Preference>("dj_sync_pronunciations")
+        syncPronunciationsPref?.setOnPreferenceClickListener {
+            syncPronunciationsWithLibrary(prefs, syncPronunciationsPref)
+            true
+        }
 
         findPreference<Preference>("dj_test_speech")?.setOnPreferenceClickListener {
             testDjVoice()
@@ -234,6 +241,67 @@ class DjSettingsFragment : BasePreferenceFragment() {
             )
 
             djEngine.testVoice()
+        }
+    }
+
+    private fun syncPronunciationsWithLibrary(prefs: SharedPreferences, pref: Preference) {
+        val context = requireContext()
+        val apiKey = prefs.getString("deepseek_api_key", null)?.trim()
+        if (apiKey.isNullOrBlank()) {
+            Toast.makeText(context, "Configurá primero tu API Key de OpenCode o DeepSeek", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val endpoint = prefs.getString("dj_api_endpoint", null)?.trim()
+        val rawModel = prefs.getString("dj_api_model", null)
+        val model = if (rawModel == "custom") prefs.getString("dj_api_model_custom", null) else rawModel
+
+        pref.isEnabled = false
+        Toast.makeText(context, "Escaneando artistas de tu catálogo...", Toast.LENGTH_SHORT).show()
+
+        lifecycleScope.launch {
+            try {
+                val result = DjPhoneticsSync.syncWithLibrary(
+                    context = context,
+                    apiKey = apiKey,
+                    customEndpoint = endpoint,
+                    customModel = model,
+                    onProgress = { current, total ->
+                        if (total > 0 && current > 0) {
+                            Toast.makeText(context, "Sincronizando: $current / $total artistas...", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+
+                pref.isEnabled = true
+                result.fold(
+                    onSuccess = { addedCount ->
+                        if (addedCount > 0) {
+                            Toast.makeText(
+                                context,
+                                "¡Listo! Se agregaron $addedCount pronunciaciones al diccionario",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "¡Tu biblioteca ya está al día con el diccionario!",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    },
+                    onFailure = { error ->
+                        Toast.makeText(
+                            context,
+                            "Error al sincronizar: ${error.localizedMessage ?: error.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                )
+            } catch (e: Exception) {
+                pref.isEnabled = true
+                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+            }
         }
     }
 }

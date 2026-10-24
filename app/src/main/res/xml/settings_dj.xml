@@ -67,6 +67,11 @@
         android:title="@string/settings_dj_pronunciation_title" />
 
     <Preference
+        android:key="dj_sync_pronunciations"
+        android:summary="@string/settings_dj_sync_pronunciations_summary"
+        android:title="@string/settings_dj_sync_pronunciations_title" />
+
+    <Preference
         android:key="dj_test_speech"
         android:summary="@string/settings_dj_test_speech_summary"
         android:title="@string/settings_dj_test_speech_title" />
