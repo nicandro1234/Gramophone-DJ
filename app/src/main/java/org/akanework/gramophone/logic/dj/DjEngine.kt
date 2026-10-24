@@ -30,9 +30,9 @@ class DjEngine(
 ) {
     companion object {
         private const val TAG = "DjEngine"
-        const val MIN_SONGS_BETWEEN_INTERVENTIONS = 3
+        const val MIN_SONGS_BETWEEN_INTERVENTIONS = 5
         const val MIN_PLAY_TIME_FOR_LISTEN_MS = 20_000L // 20s to be considered genuinely listened to
-        const val PREFETCH_DELAY_MS = 6_000L // start prefetching 6s after song begins
+        const val PREFETCH_DELAY_MS = 15_000L // start prefetching 15s after song begins
 
         @Volatile
         private var instance: DjEngine? = null
@@ -307,12 +307,17 @@ class DjEngine(
             "onSongTransition: targetBlockIndex=$targetBlockIndex, isNewBlock=$isNewBlock, hasMatchingPrefetch=$hasMatchingPrefetch, isFrequencyTrigger=$isFrequencyTrigger, isFirstSongSession=$isFirstSongSession (listenedCount=$fullyListenedSongsSinceIntervention)"
         )
 
-        val shouldIntervene = (isNewBlock || hasMatchingPrefetch || isFrequencyTrigger || isFirstSongSession)
+        // Keep active block updated even if not intervening
+        if (targetBlockIndex != -1) {
+            _activeBlockIndex.value = targetBlockIndex
+        }
+
+        // Strict 5-song gate:
+        // Intervene on session start, when a prefetch is cached for this track,
+        // or when 5 songs have genuinely been listened to. Rapid skips never trigger interventions.
+        val shouldIntervene = (isFirstSongSession || hasMatchingPrefetch || isFrequencyTrigger || (isNewBlock && isFrequencyTrigger))
 
         if (shouldIntervene && currentRawId != lastIntervenedSongId) {
-            if (targetBlockIndex != -1) {
-                _activeBlockIndex.value = targetBlockIndex
-            }
 
             if (cached != null && cached.targetSongId == currentRawId) {
                 // INSTANT PLAYBACK FROM PREFETCH CACHE (0 ms latency)

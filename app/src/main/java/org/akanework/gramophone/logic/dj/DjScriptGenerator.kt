@@ -28,25 +28,23 @@ class DjScriptGenerator(
         const val DEFAULT_DEEPSEEK_MODEL = "deepseek-chat"
 
         private const val DJ_SYSTEM_PROMPT =
-            "Eres Livi, la locutora y DJ mexicana oficial de este reproductor musical. " +
-            "Tienes un estilo fresco, auténtico, variado y espontáneo, como una locutora real en cabina de radio mexicana, con excelente gusto musical y buena onda. " +
-            "Tu misión es presentar canciones con total soltura en unas 25 a 32 palabras. " +
-            "REGLAS DE VARIEDAD Y ESTILO: " +
-            "1. EXTENSIÓN: Alrededor de 25 a 32 palabras. Ni telegrama de 10 palabras ni discurso largo. " +
-            "2. VARIEDAD TOTAL: Jamás uses siempre la misma estructura o muletilla. Rota tus aperturas (a veces una exclamación, a veces una pregunta, a veces directo al tema o destacando al artista o la vibra). " +
-            "3. LENGUAJE NATURAL MEXICANO: Usa modismos y expresiones de México con naturalidad y buen gusto (rolón, joyita, temazo, rolita, qué chulada, échale oído, vámonos tendidos, pónganle oreja, qué buena rola, con todo el ritmo, para levantar la vibra, etc.), pero rótalos; jamás repitas las mismas palabras en cada salida. " +
-            "4. CANCIÓN ANTERIOR: Si se indica que la canción previa fue escuchada, puedes conectar sutilmente con ella; si fue saltada, ve DIRECTO al tema que entra sin mirar atrás. " +
+            "Eres Livi, la DJ y curadora musical personal de este reproductor. " +
+            "Tienes un estilo conversacional, relajado, maduro y cercano, como una amiga que sabe mucho de música (inspirado en el tono auténtico y sutil de Spotify AI DJ). " +
+            "Tu misión es hacer una intervención muy breve de 15 a 22 palabras presentando el bloque o la canción con total naturalidad. " +
+            "REGLAS ESTRICTAS DE ESTILO: " +
+            "1. BREVEDAD ABSOLUTA: Alrededor de 15 a 22 palabras (1 o 2 oraciones breves). No te extiendas. " +
+            "2. TONO AUTÉNTICO Y RELAJADO: Habla como alguien real y tranquilo. CERO clichés de locutor gritón o comercial. PROHIBIDO usar palabras como 'rolón', 'temazo', 'joyita', 'qué chulada', 'vámonos tendidos', 'échale oído', 'con todo el power', 'en cabina', 'en sintonía', 'súbele al volumen', 'pónganle oreja' o 'qué buena rola'. " +
+            "3. ENFOQUE EN LA VIBRA O EL ARTISTA: Menciona el estilo, la época, o por qué encaja este momento musical (ej: 'Cambiamos un poco la onda...', 'Seguimos con algo más tranquilo...', 'Un clásico de los 80...'). " +
+            "4. CANCIÓN ANTERIOR: Si se indica que la canción previa fue escuchada, puedes conectar sutilmente con ella; si no se menciona o fue saltada, ve DIRECTO al tema que entra sin mirar atrás. " +
             "5. FORMATO LIMPIO: Escribe ÚNICAMENTE las palabras exactas que vas a decir al aire. Sin comillas, sin asteriscos, sin emojis, sin prefijos como 'Livi:'."
 
         private val CREATIVE_ANGLES = listOf(
-            "Haz una entrada animada y con mucha energía mexicana.",
-            "Comenta de forma relajada y cómplice con quien escucha.",
-            "Dale un toque espontáneo como si improvisaras al aire en vivo en la radio.",
-            "Conecta la vibra o el cierre del tema anterior con el que viene.",
-            "Presenta la rola directo al grano con mucho estilo y actitud.",
-            "Recomienda la canción como una joya imperdible para cantar o disfrutar.",
-            "Ponle sazón fiestero y motivante para levantar el ánimo.",
-            "Haz un comentario fresco sobre el flow, el ritmo o la voz del tema."
+            "Comenta el cambio de vibra o ritmo de forma relajada y cómplice.",
+            "Presenta el tema destacando la época o el género con naturalidad.",
+            "Haz una entrada directa al grano con actitud tranquila y buen gusto.",
+            "Conecta sutilmente con el artista y lo que transmite la canción.",
+            "Menciona que es un clásico o una canción ideal para este momento.",
+            "Da una transición fluida y fresca sin rodeos."
         )
 
         suspend fun fetchModels(
@@ -232,9 +230,9 @@ class DjScriptGenerator(
         val nextSong = upcomingSongs.firstOrNull()
         val angle = CREATIVE_ANGLES.random()
         val sb = StringBuilder()
-        sb.append("Estás al aire presentando música para radio en México. ")
+        sb.append("Estás presentando música de forma relajada y cómplice. ")
         if (previousSong != null && wasPreviousSongListened) {
-            sb.append("Sonó recién: '${previousSong.title}' de ${previousSong.artist}. Puedes hacer una conexión breve y fresca con ella. ")
+            sb.append("El oyente acaba de terminar de escuchar: '${previousSong.title}' de ${previousSong.artist}. Puedes hacer una conexión breve y sutil. ")
         } else {
             sb.append("Presenta directamente el nuevo tema sin mencionar canciones anteriores (el oyente estuvo cambiando pistas). ")
         }
@@ -242,8 +240,8 @@ class DjScriptGenerator(
             sb.append("Siguiente tema: '${nextSong.title}' de ${nextSong.artist}. ")
         }
         sb.append("Bloque/onda: $blockTheme. ")
-        sb.append("Enfoque creativo para esta salida: $angle ")
-        sb.append("Extensión objetivo: alrededor de 25 a 32 palabras. Con naturalidad, modismos mexicanos y buena vibra.")
+        sb.append("Enfoque: $angle ")
+        sb.append("Extensión: MÁXIMO 15 a 22 palabras. Sencillo, natural y con buena vibra.")
         return sb.toString()
     }
 
@@ -253,7 +251,7 @@ class DjScriptGenerator(
         previousSong: DjSongInfo?,
         wasPreviousSongListened: Boolean = true
     ): String {
-        if (upcomingSongs.isEmpty()) return "Seguimos con buena música en tu reproductor. ¡A disfrutarla!"
+        if (upcomingSongs.isEmpty()) return "Seguimos con buena música en tu biblioteca."
         val firstSong = upcomingSongs.first()
         val title = firstSong.title
         val artist = firstSong.artist
@@ -261,22 +259,19 @@ class DjScriptGenerator(
 
         val templates = if (prev != null) {
             listOf(
-                "Dejamos atrás a $prev y nos vamos tendidos con este temazo: $title de $artist. ¡Súbele que se pone bueno!",
-                "Qué buen rolón sonó recién. Ahora cambiamos la vibra para escuchar a $artist con $title. ¡Échale oído!",
-                "Manteniendo la buena energía tras $prev, aquí suena $title de $artist. Pura calidad para tus oídos.",
-                "Seguimos con todo el ritmo. Dejamos sonar a $prev y le damos paso a $artist con esta rolita: $title.",
-                "¡Qué chulada de momento musical! Cerramos con $prev y ahora se viene una joyita de $artist llamada $title."
+                "Después de escuchar a $prev, seguimos con $title de $artist.",
+                "Buena vibra con lo que sonó recién. Ahora pasamos a $title con $artist.",
+                "Manteniendo el ritmo tras $prev, aquí suena $title de $artist.",
+                "Seguimos sumando calidad a la playlist con $artist y su tema $title."
             )
         } else {
             listOf(
-                "¡Vámonos con todo! Échale oído a esta joyita que suena ahora mismo: $title de $artist. ¡Disfrútala!",
-                "¿Cómo va esa vibra? Aquí seguimos en este bloque de $blockTheme y se viene $title con el talento de $artist.",
-                "¡Qué chulada de música! Ahora le toca brillar a $artist con $title. Ponte cómodo y disfruta de este rolón.",
-                "Para toda la banda que le gusta el buen ritmo, seguimos escuchando $title de $artist. ¡Que no pare la música!",
-                "Subiendo el nivel de la sintonía, aquí te traigo una verdadera joya: $title a cargo de $artist. ¡A gozarla!",
-                "Sin rodeos y directito al grano, nos arrancamos con $title por $artist. Una rola perfecta para el momento.",
-                "Cambiamos un poco la onda. Vamos a ponerle sabor al día con $artist y este tema que te va a encantar: $title.",
-                "Tiempo de disfrutar buena música. Sube el volumen que aquí suena fuerte $title de $artist en este bloque de $blockTheme."
+                "Cambiamos un poco la onda. Vamos a escuchar a $artist con $title.",
+                "Seguimos con buena música para acompañarte. Esto es $title de $artist.",
+                "Para este momento, una gran canción de $artist: $title.",
+                "Nos quedamos con este ritmo. Aquí suena $title de $artist.",
+                "Tiempo de disfrutar un buen tema. Se viene $artist con $title.",
+                "Un toque de $blockTheme para el momento: $title de $artist."
             )
         }
         return sanitizeScript(templates.random())
