@@ -27,26 +27,23 @@ class DjScriptGenerator(
         const val DEFAULT_DEEPSEEK_MODEL = "deepseek-chat"
 
         private const val DJ_SYSTEM_PROMPT =
-            "Eres Livi, la locutora de radio y DJ mexicana oficial de este reproductor de música. " +
-            "Tienes un estilo fresco, auténtico, variado y espontáneo, como una locutora real en cabina de radio mexicana. " +
-            "Tu misión es presentar canciones con total libertad creativa, energía y buena vibra en unas 25 a 35 palabras. " +
-            "REGLAS DE VARIEDAD Y ESTILO: " +
-            "1. LIBERTAD Y VARIEDAD: Jamás uses siempre las mismas muletillas ni la misma estructura. Varía tu apertura (a veces con una exclamación, a veces con una pregunta, a veces directo al tema o conectando con el artista). " +
-            "2. LENGUAJE NATURAL MEXICANO: Usa modismos y expresiones naturales de México con soltura (joyita, rolón, temazo, qué chulada, rolita, échale oído, vámonos tendidos, pónganle oreja, qué buena rola, con todo el power, para agarrar ritmo, etc.), pero rótalos; jamás repitas las mismas palabras en cada salida. " +
-            "3. FORMATO: Escribe ÚNICAMENTE las palabras exactas que vas a decir al aire. Jamás expliques tu razonamiento ni agregues notas. " +
-            "4. Habla 100% en español de México. " +
-            "5. NUNCA uses comillas, asteriscos, guiones, barras, paréntesis ni emojis. " +
-            "6. NUNCA incluyas prefijos como 'Livi:' ni acotaciones."
+            "Eres Livi, la DJ y curadora musical personal de este reproductor. " +
+            "Tienes un estilo conversacional, relajado, maduro y cercano, como una amiga que sabe mucho de música (inspirado en el tono auténtico y sutil de Spotify AI DJ). " +
+            "Tu misión es hacer una intervención muy breve de 15 a 22 palabras presentando el bloque o la canción con total naturalidad. " +
+            "REGLAS ESTRICTAS DE ESTILO: " +
+            "1. BREVEDAD ABSOLUTA: Alrededor de 15 a 22 palabras (1 o 2 oraciones breves). No te extiendas. " +
+            "2. TONO AUTÉNTICO Y RELAJADO: Habla como alguien real y tranquilo. CERO clichés de locutor gritón o comercial. PROHIBIDO usar palabras como 'rolón', 'temazo', 'joyita', 'qué chulada', 'vámonos tendidos', 'échale oído', 'con todo el power', 'en cabina', 'en sintonía', 'súbele al volumen', 'pónganle oreja' o 'qué buena rola'. " +
+            "3. ENFOQUE EN LA VIBRA O EL ARTISTA: Menciona el estilo, la época, o por qué encaja este momento musical (ej: 'Cambiamos un poco la onda...', 'Seguimos con algo más tranquilo...', 'Un clásico de los 80...'). " +
+            "4. CANCIÓN ANTERIOR: Si se indica que la canción previa fue escuchada, puedes conectar sutilmente con ella; si no se menciona o fue saltada, ve DIRECTO al tema que entra sin mirar atrás. " +
+            "5. FORMATO LIMPIO: Escribe ÚNICAMENTE las palabras exactas que vas a decir al aire. Sin comillas, sin asteriscos, sin emojis, sin prefijos como 'Livi:'."
 
         private val CREATIVE_ANGLES = listOf(
-            "Haz una entrada animada y con mucha energía.",
-            "Comenta de forma relajada y cómplice con quien escucha.",
-            "Dale un toque espontáneo como si improvisaras al aire en vivo.",
-            "Conecta la vibra o el cierre del tema anterior con el que viene.",
-            "Presenta la rola directo al grano con mucho estilo y actitud.",
-            "Recomienda la canción como una joya imperdible para cantar o bailar.",
-            "Ponle sazón fiestero y motivante para levantar el ánimo.",
-            "Haz un comentario fresco sobre el flow, el ritmo o la voz del tema."
+            "Comenta el cambio de vibra o ritmo de forma relajada y cómplice.",
+            "Presenta el tema destacando la época o el género con naturalidad.",
+            "Haz una entrada directa al grano con actitud tranquila y buen gusto.",
+            "Conecta sutilmente con el artista y lo que transmite la canción.",
+            "Menciona que es un clásico o una canción ideal para este momento.",
+            "Da una transición fluida y fresca sin rodeos."
         )
 
         suspend fun fetchModels(
@@ -131,12 +128,13 @@ class DjScriptGenerator(
     suspend fun generateSpeech(
         upcomingSongs: List<DjSongInfo>,
         blockTheme: String,
-        previousSong: DjSongInfo? = null
+        previousSong: DjSongInfo? = null,
+        wasPreviousSongListened: Boolean = true
     ): String = withContext(Dispatchers.IO) {
         val apiKey = apiKeyProvider()?.trim()
         if (apiKey.isNullOrBlank()) {
             Log.d(TAG, "No API key configured, using offline template generator.")
-            return@withContext generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong)
+            return@withContext generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong, wasPreviousSongListened)
         }
 
         val isOpenCode = apiKey.startsWith("oc_sk_") || apiKey.contains("opencode")
@@ -151,7 +149,7 @@ class DjScriptGenerator(
         }
 
         try {
-            val userPrompt = buildUserPrompt(upcomingSongs, blockTheme, previousSong)
+            val userPrompt = buildUserPrompt(upcomingSongs, blockTheme, previousSong, wasPreviousSongListened)
             val jsonPayload = JSONObject().apply {
                 put("model", model)
                 put("messages", JSONArray().apply {
@@ -164,8 +162,8 @@ class DjScriptGenerator(
                         put("content", userPrompt)
                     })
                 })
-                put("temperature", 0.85)
-                put("max_tokens", 1024)
+                put("temperature", 0.75)
+                put("max_tokens", 512)
             }
 
             val body = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
@@ -185,10 +183,10 @@ class DjScriptGenerator(
             if (!response.isSuccessful) {
                 val errBody = response.body?.string() ?: ""
                 Log.w(TAG, "API call failed (${response.code} ${response.message}): $errBody")
-                return@withContext generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong)
+                return@withContext generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong, wasPreviousSongListened)
             }
 
-            val responseBody = response.body?.string() ?: return@withContext generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong)
+            val responseBody = response.body?.string() ?: return@withContext generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong, wasPreviousSongListened)
             val jsonResponse = JSONObject(responseBody)
             val choices = jsonResponse.optJSONArray("choices")
             if (choices != null && choices.length() > 0) {
@@ -211,64 +209,62 @@ class DjScriptGenerator(
             Log.w(TAG, "Exception calling LLM endpoint ($endpoint), falling back to local script", e)
         }
 
-        generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong)
+        generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong, wasPreviousSongListened)
     }
 
     private fun buildUserPrompt(
         upcomingSongs: List<DjSongInfo>,
         blockTheme: String,
-        previousSong: DjSongInfo?
+        previousSong: DjSongInfo?,
+        wasPreviousSongListened: Boolean
     ): String {
         val nextSong = upcomingSongs.firstOrNull()
         val angle = CREATIVE_ANGLES.random()
         val sb = StringBuilder()
-        sb.append("Estás al aire en cabina. ")
-        if (previousSong != null) {
-            sb.append("Sonó recién: '${previousSong.title}' de ${previousSong.artist}. ")
+        sb.append("Estás presentando música de forma relajada y cómplice. ")
+        if (previousSong != null && wasPreviousSongListened) {
+            sb.append("El oyente acaba de terminar de escuchar: '${previousSong.title}' de ${previousSong.artist}. Puedes hacer una conexión breve y sutil. ")
+        } else {
+            sb.append("Presenta directamente el nuevo tema sin mencionar canciones anteriores (el oyente estuvo cambiando pistas). ")
         }
         if (nextSong != null) {
             sb.append("Siguiente tema: '${nextSong.title}' de ${nextSong.artist}. ")
         }
-        sb.append("Bloque/estilo: $blockTheme. ")
-        sb.append("Consigna creativa para esta salida: $angle ")
-        sb.append("Extensión objetivo: alrededor de 25 a 35 palabras. ")
-        sb.append("IMPORTANTE: PROHIBIDO iniciar con 'Aquí arranca' o 'Ahora arranca'. Inventa una entrada diferente, fresca, variada y con personalidad propia.")
+        sb.append("Bloque/onda: $blockTheme. ")
+        sb.append("Enfoque: $angle ")
+        sb.append("Extensión: MÁXIMO 15 a 22 palabras. Sencillo, natural y con buena vibra.")
         return sb.toString()
     }
 
     private fun generateOfflineFallbackScript(
         upcomingSongs: List<DjSongInfo>,
         blockTheme: String,
-        previousSong: DjSongInfo?
+        previousSong: DjSongInfo?,
+        wasPreviousSongListened: Boolean = true
     ): String {
-        if (upcomingSongs.isEmpty()) return "Seguimos con buena música en tu reproductor. Disfruta el momento y súbele al volumen."
+        if (upcomingSongs.isEmpty()) return "Seguimos con buena música en tu biblioteca."
         val firstSong = upcomingSongs.first()
         val title = firstSong.title
         val artist = firstSong.artist
-        val prev = previousSong?.title
+        val prev = if (wasPreviousSongListened) previousSong?.title else null
 
-        val templates = listOf(
-            if (prev != null) "Dejamos atrás a $prev y nos vamos tendidos con este temazo: $title de $artist. ¡Súbele que se pone bueno!"
-            else "¡Vámonos con todo! Échale oído a esta joyita que suena ahora mismo: $title de $artist. ¡Disfrútala!",
-
-            "¿Cómo va esa vibra? Aquí seguimos con lo mejor de $blockTheme y se viene $title con el talento de $artist. ¡Pónganle oreja!",
-
-            "¡Qué chulada de música! Ahora le toca brillar a $artist con $title. Ponte cómodo y disfruta de este rolón.",
-
-            "Para toda la banda que le gusta el buen ritmo, seguimos en $blockTheme escuchando $title de $artist. ¡Que no pare la música!",
-
-            "Subiendo el nivel de la sintonía, aquí te traigo una verdadera joya: $title a cargo de $artist. ¡A gozarla!",
-
-            "Si necesitabas energía para tu día, estás en el lugar correcto. Suena fuerte $title de $artist en este bloque de $blockTheme.",
-
-            "¡Esto se pone cada vez mejor! Quédate en sintonía porque lo que viene es pura calidad: $title de $artist.",
-
-            "Sin rodeos y directito al corazón, nos arrancamos con $title por $artist. ¡Súbele al volumen y canta con todo!",
-
-            "¡Uf, qué manera de disfrutar la música! Nos acompaña $artist con su rolón $title dentro de $blockTheme. ¡A todo volumen!",
-
-            "Seguimos con la mejor selección del día. Prepárate para cantar con $title de $artist, una rola perfecta para el momento."
-        )
+        val templates = if (prev != null) {
+            listOf(
+                "Después de escuchar a $prev, seguimos con $title de $artist.",
+                "Buena vibra con lo que sonó recién. Ahora pasamos a $title con $artist.",
+                "Manteniendo el ritmo tras $prev, aquí suena $title de $artist.",
+                "Seguimos sumando calidad a la playlist con $artist y su tema $title."
+            )
+        } else {
+            listOf(
+                "Cambiamos un poco la onda. Vamos a escuchar a $artist con $title.",
+                "Seguimos con buena música para acompañarte. Esto es $title de $artist.",
+                "Para este momento, una gran canción de $artist: $title.",
+                "Nos quedamos con este ritmo. Aquí suena $title de $artist.",
+                "Tiempo de disfrutar un buen tema. Se viene $artist con $title.",
+                "Un toque de $blockTheme para el momento: $title de $artist."
+            )
+        }
         return sanitizeScript(templates.random())
     }
 

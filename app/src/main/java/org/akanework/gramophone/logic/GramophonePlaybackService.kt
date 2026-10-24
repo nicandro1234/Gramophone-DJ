@@ -1697,6 +1697,7 @@ class GramophonePlaybackService : MediaLibraryService(), MediaSessionService.Lis
     override fun onIsPlayingChanged(isPlaying: Boolean) {
         scheduleSendingLyrics(false)
         lastPlayedManager.save()
+        djEngine?.onPlaybackStateChanged(isPlaying)
     }
 
     override fun onEvents(player: Player, events: Player.Events) {

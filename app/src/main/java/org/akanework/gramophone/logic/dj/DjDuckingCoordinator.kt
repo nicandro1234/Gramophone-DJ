@@ -344,7 +344,7 @@ class DjDuckingCoordinator(
     fun applyVolumeToPlayer(player: Player?, volume: Float) {
         try {
             val service = GramophonePlaybackService.instanceForWidgetAndLyricsOnly
-            val exo = service?.endedWorkaroundPlayer?.exoPlayer ?: (playerProvider() as? ExoPlayer)
+            val exo = service?.endedWorkaroundPlayer?.exoPlayer ?: playerProvider()
             exo?.volume = volume
             service?.endedWorkaroundPlayer?.volume = volume
         } catch (e: Exception) {
@@ -464,6 +464,11 @@ class DjDuckingCoordinator(
             mainHandler.removeCallbacks(timeoutRunnable)
             safeFinish()
         }
+    }
+
+    fun onPlaybackPaused() {
+        Log.i(TAG, "onPlaybackPaused: stopping speech and restoring normal volume")
+        cancelSpeechAndRestore()
     }
 
     fun cancelSpeechAndRestore() {
