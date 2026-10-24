@@ -100,6 +100,13 @@ class DjEngine(
     private var prefetchWatcherJob: Job? = null
     private var prefetchedIntervention: PrefetchedIntervention? = null
 
+    fun isPlaybackActive(): Boolean {
+        val player = playerProvider() ?: return false
+        return player.playWhenReady &&
+               player.playbackState != Player.STATE_IDLE &&
+               player.playbackState != Player.STATE_ENDED
+    }
+
     fun setDjModeEnabled(enabled: Boolean) {
         _isDjModeEnabled.value = enabled
         if (!enabled) {
@@ -112,7 +119,7 @@ class DjEngine(
 
     /**
      * Activates DJ Mode smoothly without restarting or replacing the current queue.
-     * Uses any pre-warmed initial intervention if available.
+     * Uses any pre-warmed initial intervention if available, but only speaks if playback is rolling.
      */
     fun activateDjMode(controller: Player?) {
         setDjModeEnabled(true)
@@ -128,7 +135,7 @@ class DjEngine(
             setupQueue(queue)
         }
 
-        // 2. Identify current playing track and check for pre-warmed speech
+        // 2. Identify current playing track
         val currentItem = player.currentMediaItem
         if (currentItem != null) {
             val currentRawId = parseQueueTitle(currentItem).first
@@ -138,38 +145,41 @@ class DjEngine(
                 currentPlayingSongInfo = currentItem.toDjSongInfo()
             }
 
-            val cached = prefetchedIntervention
-            if (cached != null && (cached.targetSongId == currentRawId || cached.targetSongId == "initial")) {
-                Log.i(TAG, "HIT PRE-WARMED INTERVENTION on DJ activation for $currentRawId! Starting instant speech.")
-                prefetchedIntervention = null
-                lastIntervenedSongId = currentRawId
-                songsSinceIntervention = 0
-                _lastSpeechScript.value = cached.script
+            // CRITICAL: Only speak if music playback is active. If paused/idle, keep in background!
+            if (isPlaybackActive()) {
+                val cached = prefetchedIntervention
+                if (cached != null && (cached.targetSongId == currentRawId || cached.targetSongId == "initial")) {
+                    Log.i(TAG, "HIT PRE-WARMED INTERVENTION on DJ activation for $currentRawId! Starting instant speech.")
+                    prefetchedIntervention = null
+                    lastIntervenedSongId = currentRawId
+                    songsSinceIntervention = 0
+                    _lastSpeechScript.value = cached.script
 
-                duckingCoordinator.prepareForIntervention()
-                duckingCoordinator.playInterventionWithDucking(
-                    audioFile = cached.audioFile,
-                    fallbackText = cached.script
-                ) {
-                    cached.audioFile?.let { try { it.delete() } catch (_: Exception) {} }
+                    duckingCoordinator.prepareForIntervention()
+                    duckingCoordinator.playInterventionWithDucking(
+                        audioFile = cached.audioFile,
+                        fallbackText = cached.script
+                    ) {
+                        cached.audioFile?.let { try { it.delete() } catch (_: Exception) {} }
+                    }
+                } else if (lastIntervenedSongId == null) {
+                    val upcomingInfos = listOf(currentItem.toDjSongInfo())
+                    val theme = resolveThemeForSong(currentItem)
+                    lastIntervenedSongId = currentRawId
+                    songsSinceIntervention = 0
+                    activeInterventionJob = scope.launch {
+                        executeIntervention(
+                            theme = theme,
+                            upcomingSongs = upcomingInfos,
+                            previousSong = null,
+                            wasPreviousSongListened = false
+                        )
+                    }
                 }
-            } else if (lastIntervenedSongId == null && player.isPlaying) {
-                // If currently playing and never intervened, trigger brief intro for current track
-                val upcomingInfos = listOf(currentItem.toDjSongInfo())
-                val theme = resolveThemeForSong(currentItem)
-                lastIntervenedSongId = currentRawId
-                songsSinceIntervention = 0
-                activeInterventionJob = scope.launch {
-                    executeIntervention(
-                        theme = theme,
-                        upcomingSongs = upcomingInfos,
-                        previousSong = null,
-                        wasPreviousSongListened = false
-                    )
-                }
+                schedulePrefetchWatcher(currentRawId)
+            } else {
+                Log.d(TAG, "activateDjMode: player is paused/idle. Keeping pre-warmed intervention in background.")
             }
-
-            schedulePrefetchWatcher(currentRawId)
         }
     }
 
@@ -257,6 +267,34 @@ class DjEngine(
             }
             isCurrentlyPaused = false
             currentPausedSongId = null
+
+            // If playback started and this track hasn't had an intervention yet, use pre-warmed speech over the intro!
+            val player = playerProvider()
+            val currentItem = player?.currentMediaItem
+            if (currentItem != null && lastIntervenedSongId == null) {
+                val currentRawId = parseQueueTitle(currentItem).first
+                currentPlayingSongId = currentRawId
+                currentSongStartTimeMs = System.currentTimeMillis()
+                currentPlayingSongInfo = currentItem.toDjSongInfo()
+
+                val cached = prefetchedIntervention
+                if (cached != null && (cached.targetSongId == currentRawId || cached.targetSongId == "initial")) {
+                    Log.i(TAG, "HIT PRE-WARMED CACHE on Play pressed! Starting instant DJ speech.")
+                    prefetchedIntervention = null
+                    lastIntervenedSongId = currentRawId
+                    songsSinceIntervention = 0
+                    _lastSpeechScript.value = cached.script
+
+                    duckingCoordinator.prepareForIntervention()
+                    duckingCoordinator.playInterventionWithDucking(
+                        audioFile = cached.audioFile,
+                        fallbackText = cached.script
+                    ) {
+                        cached.audioFile?.let { try { it.delete() } catch (_: Exception) {} }
+                    }
+                }
+                schedulePrefetchWatcher(currentRawId)
+            }
         }
     }
 
@@ -385,7 +423,17 @@ class DjEngine(
         currentPlayingSongId = currentRawId
         currentSongStartTimeMs = now
         currentPlayingSongInfo = currentMediaItem.toDjSongInfo()
-        isCurrentlyPaused = false
+
+        val isPlaying = isPlaybackActive()
+        isCurrentlyPaused = !isPlaying
+
+        // CRITICAL: If playback is not active (e.g. app opened and queue restored while paused),
+        // DO NOT intervene! Keep prewarm in background until user presses play.
+        if (!isPlaying) {
+            Log.d(TAG, "onSongTransition: player is not playing (paused/idle). Keeping prewarm in background.")
+            return
+        }
+
         currentPausedSongId = null
 
         // Ensure blocks exist
