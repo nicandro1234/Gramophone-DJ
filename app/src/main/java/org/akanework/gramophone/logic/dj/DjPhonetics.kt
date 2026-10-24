@@ -9,6 +9,10 @@ object DjPhonetics {
     val BUILTIN_PRONUNCIATIONS = listOf(
         // Rock, Metalcore & Post-Hardcore (Catalog artists)
         "Bring Me The Horizon" to "Bring Mi De Joraizon",
+        "Born Of Osiris" to "Born of Osáiris",
+        "I See Stars" to "Ai Si Stars",
+        "Silence the Echo" to "Sáilens di Éco",
+        "Till the World Ends" to "Til de Uerld Ens",
         "Pierce The Veil" to "Pirs De Veil",
         "Falling In Reverse" to "Fóling In Rivérs",
         "A Day To Remember" to "A Déi Tu Rimémber",

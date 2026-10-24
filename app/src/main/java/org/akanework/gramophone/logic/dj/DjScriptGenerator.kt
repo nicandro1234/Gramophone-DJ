@@ -30,12 +30,18 @@ class DjScriptGenerator(
             "Eres Livi, la DJ y curadora musical personal de este reproductor. " +
             "Tienes un estilo conversacional, relajado, maduro y cercano, como una amiga que sabe mucho de música (inspirado en el tono auténtico y sutil de Spotify AI DJ). " +
             "Tu misión es hacer una intervención muy breve de 15 a 22 palabras presentando el bloque o la canción con total naturalidad. " +
-            "REGLAS ESTRICTAS DE ESTILO: " +
+            "REGLAS ESTRICTAS DE ESTILO Y FONÉTICA: " +
             "1. BREVEDAD ABSOLUTA: Alrededor de 15 a 22 palabras (1 o 2 oraciones breves). No te extiendas. " +
-            "2. TONO AUTÉNTICO Y RELAJADO: Habla como alguien real y tranquilo. CERO clichés de locutor gritón o comercial. PROHIBIDO usar palabras como 'rolón', 'temazo', 'joyita', 'qué chulada', 'vámonos tendidos', 'échale oído', 'con todo el power', 'en cabina', 'en sintonía', 'súbele al volumen', 'pónganle oreja' o 'qué buena rola'. " +
+            "2. TONO AUTÉNTICO Y RELAJADO: Habla como alguien real y tranquilo. CERO clichés de locutor comercial. PROHIBIDO usar palabras como 'rolón', 'temazo', 'joyita', 'qué chulada', 'vámonos tendidos', 'échale oído', 'con todo el power', 'en cabina', 'en sintonía', 'súbele al volumen', 'pónganle oreja' o 'qué buena rola'. " +
             "3. ENFOQUE EN LA VIBRA O EL ARTISTA: Menciona el estilo, la época, o por qué encaja este momento musical (ej: 'Cambiamos un poco la onda...', 'Seguimos con algo más tranquilo...', 'Un clásico de los 80...'). " +
             "4. CANCIÓN ANTERIOR: Si se indica que la canción previa fue escuchada, puedes conectar sutilmente con ella; si no se menciona o fue saltada, ve DIRECTO al tema que entra sin mirar atrás. " +
-            "5. PRONUNCIACIÓN FONÉTICA DE ARTISTAS Y TÍTULOS EN OTROS IDIOMAS: El sintetizador de voz lee en español puro. Cuando menciones artistas o TÍTULOS DE CANCIONES en inglés o con nombres extranjeros, escribe SIEMPRE tanto el artista como el título fonéticamente como sonarían en español para que la voz no los lea con acento roto o literal (por ejemplo: para 'Smells Like Teen Spirit' de Nirvana di 'Smels Laik Tin Spírit' de Nirvána; para 'Bohemian Rhapsody' de Queen di 'Bojímian Rápsodi' de Cuín; para 'In The End' de Linkin Park di 'In Di End' de Línkin Park; para 'Blinding Lights' de The Weeknd di 'Bláinding Láits' de De Güíkend; para 'Drown' de Bring Me The Horizon di 'Draun' de Bring Mi De Joraizon; etc.). Si el nombre o título ya está en español o se lee tal cual, déjalo normal. " +
+            "5. ADAPTACIÓN FONÉTICA INTEGRAL AL ESPAÑOL (MANDATORIO): El sintetizador de voz es un motor TTS en español puro. Si el título o el artista son en inglés u otro idioma extranjero, DEBES TRANSCRIBIR EL TÍTULO COMPLETO Y EL ARTISTA COMPLETO a fonética escrita en español, de forma integral y natural: " +
+            "   - Regla de la 'W': Transcribe SIEMPRE con 'U' o 'Hu' (NUNCA uses 'Gü', que suena gutural y tosco). Ejemplos: 'World' -> 'Uerld' (o 'Uorld'), 'Weekend' -> 'Uikend', 'Will' -> 'Uil', 'One' -> 'Uan', 'War' -> 'Uor'. " +
+            "   - Regla de la 'S' inicial en inglés: NO agregues una 'E' adelante; escribe 'S' o 'St' (ej: 'Stars' -> 'Stars', 'Silence' -> 'Sáilens', 'Space' -> 'Speis', NUNCA 'Estars' ni 'Espeis'). " +
+            "   - Suaviza consonantes finales complejas: 'Ends' -> 'Ens', 'Night' -> 'Nait', 'Echo' -> 'Éco', 'Loved' -> 'Lovd'. " +
+            "   - Ejemplos de títulos: 'Till the World Ends' -> 'Til de Uerld Ens'; 'Silence the Echo' -> 'Sáilens di Éko'; 'She Will Be Loved' -> 'Shi Uil Bi Lovd'; 'Smells Like Teen Spirit' -> 'Smels Laik Tin Spírit'. " +
+            "   - Ejemplos de artistas: 'I See Stars' -> 'Ai Si Stars'; 'Born Of Osiris' -> 'Born of Osáiris'; 'The Weeknd' -> 'De Uikend'; 'Bring Me The Horizon' -> 'Bring Mi De Joraizon'; 'Maroon 5' -> 'Marún Faiv'. " +
+            "   - Si el título o artista ya están en español, déjalos idénticos. " +
             "6. FORMATO LIMPIO: Escribe ÚNICAMENTE las palabras exactas que vas a decir al aire. Sin comillas, sin asteriscos, sin emojis, sin prefijos como 'Livi:'."
 
         private val CREATIVE_ANGLES = listOf(
@@ -190,14 +196,15 @@ class DjScriptGenerator(
                 }
 
                 val responseBody = response.body?.string() ?: return@withTimeoutOrNull null
+                Log.d(TAG, "OpenCode response: $responseBody")
                 val jsonResponse = JSONObject(responseBody)
                 val choices = jsonResponse.optJSONArray("choices")
                 if (choices != null && choices.length() > 0) {
                     val choice = choices.getJSONObject(0)
                     val msg = choice.optJSONObject("message")
-                    // Only take the actual assistant content, NEVER reasoning_content (which is internal thoughts)
                     val raw = msg?.optString("content")?.takeIf { it.isNotBlank() }
                         ?: choice.optString("text").takeIf { it.isNotBlank() }
+                        ?: msg?.optString("reasoning_content")?.takeIf { it.isNotBlank() }
 
                     if (!raw.isNullOrBlank()) {
                         val clean = sanitizeScript(raw)
@@ -205,7 +212,11 @@ class DjScriptGenerator(
                         if (phonetic.isNotBlank()) {
                             return@withTimeoutOrNull phonetic
                         }
+                    } else {
+                        Log.w(TAG, "OpenCode returned choice without content: $choice")
                     }
+                } else {
+                    Log.w(TAG, "OpenCode returned no choices in payload: $responseBody")
                 }
                 null
             }
@@ -223,6 +234,28 @@ class DjScriptGenerator(
         generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong, wasPreviousSongListened)
     }
 
+    fun detectLanguage(title: String, artist: String, genre: String? = null): String {
+        val combined = "$title $artist ${genre ?: ""}".lowercase()
+        // Japanese / Chinese / Korean scripts
+        if (combined.any { it in '\u4e00'..'\u9fa5' || it in '\u3040'..'\u30ff' || it in '\uac00'..'\ud7af' }) {
+            return "Asiático (Japonés/Coreano/Chino)"
+        }
+        // Obvious Spanish words or accented characters
+        val spanishMarkers = listOf("á", "é", "í", "ó", "ú", "ñ", "amor", "corazon", "noche", "vida", "fuego", "cancion", "sol", "luna", "para", "por", "con", "sin", "los", "las", "del", "una", "mundo", "tiempo", "cielo", "ojos", "beso", "musica")
+        if (spanishMarkers.any { combined.contains(it) }) {
+            return "Español"
+        }
+        val frenchMarkers = listOf("le", "la", "les", "du", "des", "mon", "amour", "vie", "avec", "pour", "dans")
+        if (frenchMarkers.any { Regex("\\b$it\\b").containsMatchIn(combined) }) {
+            return "Francés"
+        }
+        val germanMarkers = listOf("der", "die", "das", "und", "nicht", "ich", "du", "mit")
+        if (germanMarkers.any { Regex("\\b$it\\b").containsMatchIn(combined) }) {
+            return "Alemán"
+        }
+        return "Inglés / Extranjero"
+    }
+
     private fun buildUserPrompt(
         upcomingSongs: List<DjSongInfo>,
         blockTheme: String,
@@ -234,13 +267,18 @@ class DjScriptGenerator(
         val sb = StringBuilder()
         sb.append("Estás presentando música de forma relajada y cómplice. ")
         if (previousSong != null && wasPreviousSongListened) {
-            sb.append("El oyente acaba de terminar de escuchar: '${previousSong.title}' de ${previousSong.artist}. Puedes hacer una conexión breve y sutil. ")
+            val prevLang = detectLanguage(previousSong.title, previousSong.artist, previousSong.genre)
+            sb.append("El oyente acaba de terminar de escuchar: '${previousSong.title}' de ${previousSong.artist} (idioma/origen: $prevLang). Puedes hacer una conexión breve y sutil. ")
         } else {
             sb.append("Presenta directamente el nuevo tema sin mencionar canciones anteriores (el oyente estuvo cambiando pistas). ")
         }
         if (nextSong != null) {
+            val nextLang = detectLanguage(nextSong.title, nextSong.artist, nextSong.genre)
             sb.append("Siguiente tema: '${nextSong.title}' de ${nextSong.artist}. ")
-            sb.append("FONÉTICA: Si el título '${nextSong.title}' o el artista '${nextSong.artist}' están en inglés u otro idioma extranjero, adáptalos fonéticamente a cómo se leen en español para que el lector TTS los pronuncie con naturalidad. ")
+            sb.append("Idioma/origen detectado: $nextLang. ")
+            if (nextLang != "Español") {
+                sb.append("FONÉTICA COMPLETA AL ESPAÑOL: Dado que el tema está en $nextLang, transcribe TODO el título y TODO el artista a fonética española integral para que el TTS lo lea con naturalidad (ej: 'Til de Uerld Ens' de 'Ai Si Stars', 'Sáilens di Éko' de 'Born of Osáiris'). Recuerda: 'W' se escribe con 'U' (ej: Uerld, Uikend, Uan), jamás 'Gü'. ")
+            }
         }
         sb.append("Bloque/onda: $blockTheme. ")
         sb.append("Enfoque: $angle ")
