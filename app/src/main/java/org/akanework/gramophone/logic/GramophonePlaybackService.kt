@@ -596,6 +596,7 @@ class GramophonePlaybackService : MediaLibraryService(), MediaSessionService.Lis
                 }
             )
             djEngine?.setDjModeEnabled(prefs.getBoolean("dj_mode_enabled", false))
+            djEngine?.prewarmInitialIntervention()
         }
         controller = MediaBrowser.Builder(this, mediaSession!!.token).buildAsync().get()
         controller!!.addListener(this)
@@ -674,6 +675,7 @@ class GramophonePlaybackService : MediaLibraryService(), MediaSessionService.Lis
                             } != null) {
                             handler.post { endedWorkaroundPlayer?.prepare() }
                         }
+                        djEngine?.prewarmInitialIntervention()
                     }
                 } else
                     lastPlaylistLoaded.complete(Unit)

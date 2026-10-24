@@ -517,13 +517,9 @@ class FullBottomSheet
 
             if (next) {
                 Toast.makeText(context, "🎙️ Modo DJ Livi activado", Toast.LENGTH_SHORT).show()
-                activity.lifecycleScope.launch {
-                    val songs = activity.reader.songListFlow.first()
-                    djEngine.startDjSession(activity.getPlayer(), songs)
-                }
+                djEngine.activateDjMode(activity.getPlayer())
             } else {
                 djEngine.setDjModeEnabled(false)
-                djEngine.duckingCoordinator.cancelSpeechAndRestore()
                 Toast.makeText(context, "Modo DJ desactivado", Toast.LENGTH_SHORT).show()
             }
         }

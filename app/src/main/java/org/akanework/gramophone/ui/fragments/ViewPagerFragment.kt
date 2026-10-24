@@ -234,13 +234,9 @@ class ViewPagerFragment : BaseFragment(true) {
 
                     if (newEnabled) {
                         Toast.makeText(requireContext(), "🎙️ Modo DJ Livi activado", Toast.LENGTH_SHORT).show()
-                        lifecycleScope.launch {
-                            val songs = activity.reader.songListFlow.first()
-                            djEngine.startDjSession(activity.getPlayer(), songs)
-                        }
+                        djEngine.activateDjMode(activity.getPlayer())
                     } else {
                         djEngine.setDjModeEnabled(false)
-                        djEngine.duckingCoordinator.cancelSpeechAndRestore()
                         Toast.makeText(requireContext(), "Modo DJ desactivado", Toast.LENGTH_SHORT).show()
                     }
                 }
