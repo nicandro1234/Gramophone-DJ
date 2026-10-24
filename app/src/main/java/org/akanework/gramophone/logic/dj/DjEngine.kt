@@ -32,7 +32,7 @@ class DjEngine(
         private const val TAG = "DjEngine"
         const val MIN_SONGS_BETWEEN_INTERVENTIONS = 3
         const val MIN_PLAY_TIME_FOR_LISTEN_MS = 20_000L // 20s to be considered genuinely listened to
-        const val PREFETCH_DELAY_MS = 15_000L // start prefetching 15s after song begins
+        const val PREFETCH_DELAY_MS = 6_000L // start prefetching 6s after song begins
 
         @Volatile
         private var instance: DjEngine? = null
@@ -343,7 +343,7 @@ class DjEngine(
             lastIntervenedSongId = currentRawId
             fullyListenedSongsSinceIntervention = 0
 
-            val debounceMs = if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) 400L else 0L
+            val debounceMs = if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) 250L else 0L
 
             activeInterventionJob = scope.launch {
                 if (debounceMs > 0L) {
@@ -375,21 +375,34 @@ class DjEngine(
             delay(PREFETCH_DELAY_MS)
             if (!isActive || currentPlayingSongId != forSongId || isCurrentlyPaused) return@launch
 
-            val player = playerProvider() ?: return@launch
-            val nextIndex = player.currentMediaItemIndex + 1
-            if (nextIndex in 0 until player.mediaItemCount) {
-                val nextItem = player.getMediaItemAt(nextIndex)
-                val nextRawId = parseQueueTitle(nextItem).first
-                val blocks = _currentBlocks.value
-                val nextBlockIndex = blocks.indexOfFirst { b -> b.songs.any { parseQueueTitle(it).first == nextRawId } }
-                val isNextNewBlock = (nextBlockIndex != -1 && nextBlockIndex != _activeBlockIndex.value)
-                val isNextFrequency = (fullyListenedSongsSinceIntervention + 1 >= MIN_SONGS_BETWEEN_INTERVENTIONS)
-
-                if (isNextNewBlock || isNextFrequency) {
-                    if (prefetchedIntervention?.targetSongId != nextRawId) {
-                        Log.i(TAG, "Prefetch watcher: initiating prefetch for upcoming track: $nextRawId (newBlock=$isNextNewBlock, freq=$isNextFrequency)")
-                        triggerPrefetchForSong(nextItem)
+            val (nextItem, isNextNewBlock, isNextFrequency) = withContext(Dispatchers.Main) {
+                try {
+                    val player = playerProvider() ?: return@withContext Triple(null, false, false)
+                    val nextIndex = player.currentMediaItemIndex + 1
+                    if (nextIndex in 0 until player.mediaItemCount) {
+                        val item = player.getMediaItemAt(nextIndex)
+                        val nextRawId = parseQueueTitle(item).first
+                        val blocks = _currentBlocks.value
+                        val nextBlockIndex = blocks.indexOfFirst { b -> b.songs.any { parseQueueTitle(it).first == nextRawId } }
+                        val isNewBlock = (nextBlockIndex != -1 && nextBlockIndex != _activeBlockIndex.value)
+                        val isFreq = (fullyListenedSongsSinceIntervention + 1 >= MIN_SONGS_BETWEEN_INTERVENTIONS)
+                        Triple(item, isNewBlock, isFreq)
+                    } else {
+                        Triple(null, false, false)
                     }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error checking upcoming track on main thread", e)
+                    Triple(null, false, false)
+                }
+            }
+
+            if (!isActive || currentPlayingSongId != forSongId || isCurrentlyPaused) return@launch
+
+            if (nextItem != null && (isNextNewBlock || isNextFrequency)) {
+                val nextRawId = parseQueueTitle(nextItem).first
+                if (prefetchedIntervention?.targetSongId != nextRawId) {
+                    Log.i(TAG, "Prefetch watcher: initiating prefetch for upcoming track: $nextRawId (newBlock=$isNextNewBlock, freq=$isNextFrequency)")
+                    triggerPrefetchForSong(nextItem)
                 }
             }
         }

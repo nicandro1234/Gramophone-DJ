@@ -82,10 +82,9 @@ class DjDuckingCoordinator(
 
     private fun getActivePlayer(): Player? {
         val service = GramophonePlaybackService.instanceForWidgetAndLyricsOnly
-        service?.endedWorkaroundPlayer?.let { return it }
-        service?.endedWorkaroundPlayer?.exoPlayer?.let { return it }
-
         try {
+            service?.endedWorkaroundPlayer?.let { return it }
+            service?.endedWorkaroundPlayer?.exoPlayer?.let { return it }
             playerProvider()?.let { return it }
         } catch (_: Exception) {}
 
@@ -342,6 +341,11 @@ class DjDuckingCoordinator(
     }
 
     fun applyVolumeToPlayer(player: Player?, volume: Float) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { applyVolumeToPlayer(player, volume) }
+            return
+        }
+
         try {
             val service = GramophonePlaybackService.instanceForWidgetAndLyricsOnly
             val exo = service?.endedWorkaroundPlayer?.exoPlayer ?: playerProvider()
