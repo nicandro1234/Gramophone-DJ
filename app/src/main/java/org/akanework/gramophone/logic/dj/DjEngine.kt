@@ -455,7 +455,8 @@ class DjEngine(
         )
 
         // Evaluate previous song listen duration (did user listen or rapid-skip?)
-        if (currentPlayingSongId != null) {
+        // Crucial: Only increment when transitioning FROM a previous song TO a DIFFERENT song!
+        if (currentPlayingSongId != null && currentPlayingSongId != currentRawId) {
             val elapsedMs = now - currentSongStartTimeMs
             // Count every song transition towards the 5-song threshold (including skips)
             songsSinceIntervention++
@@ -502,19 +503,23 @@ class DjEngine(
             }
         }
 
-        val isFrequencyTrigger = (songsSinceIntervention >= MIN_SONGS_BETWEEN_INTERVENTIONS)
         val isFirstSongSession = (lastIntervenedSongId == null)
         val cached = prefetchedIntervention
+        val hasMatchingCached = (cached != null && (cached.targetSongId == currentRawId || cached.targetSongId == "initial"))
+        val isBlockBoundary = (player != null && player.currentMediaItemIndex > 0 && player.currentMediaItemIndex % MIN_SONGS_BETWEEN_INTERVENTIONS == 0)
+        val isFrequencyTrigger = (songsSinceIntervention >= MIN_SONGS_BETWEEN_INTERVENTIONS)
 
         Log.d(
             TAG,
-            "onSongTransition: song=$currentRawId, songsSinceIntervention=$songsSinceIntervention, isFrequencyTrigger=$isFrequencyTrigger, hasCached=${cached != null}"
+            "onSongTransition: song=$currentRawId (index=${player?.currentMediaItemIndex}), songsSinceIntervention=$songsSinceIntervention, isFrequencyTrigger=$isFrequencyTrigger, hasMatchingCached=$hasMatchingCached, isBlockBoundary=$isBlockBoundary, cachedTarget=${cached?.targetSongId}"
         )
 
-        if ((isFirstSongSession || isFrequencyTrigger) && currentRawId != lastIntervenedSongId) {
-            if (cached != null) {
+        val shouldTrigger = (isFirstSongSession || hasMatchingCached || (isFrequencyTrigger && isBlockBoundary)) && currentRawId != lastIntervenedSongId
+
+        if (shouldTrigger) {
+            if (hasMatchingCached && cached != null) {
                 // INSTANT PLAYBACK FROM CONTINUOUS PIPELINE CACHE (0 ms latency)
-                Log.i(TAG, "Continuous Pipeline: PLAYING cached speech! songsCount=$songsSinceIntervention")
+                Log.i(TAG, "Continuous Pipeline: PLAYING cached speech for song $currentRawId! songsCount=$songsSinceIntervention")
                 prefetchedIntervention = null
                 lastIntervenedSongId = currentRawId
                 songsSinceIntervention = 0
@@ -529,31 +534,38 @@ class DjEngine(
                     cached.audioFile?.let { try { it.delete() } catch (_: Exception) {} }
                 }
 
-                // Immediately start pre-loading the next speech in background for the next 5 songs!
+                // Immediately start pre-loading the next speech in background for the next block!
                 prepareNextIntervention()
                 return
-            } else {
-                // If background loader is in flight, await it
+            } else if (isFirstSongSession || isBlockBoundary || isFrequencyTrigger) {
+                // Stale or missing cache: clear prefetch if it belonged to a skipped-over song
+                if (cached != null && cached.targetSongId != currentRawId) {
+                    Log.d(TAG, "Cached speech was for ${cached.targetSongId}, but current song is $currentRawId. Clearing stale cache.")
+                    clearPrefetch()
+                }
+
                 activeInterventionJob = scope.launch {
-                    prefetchJob?.join()
-                    val ready = prefetchedIntervention
-                    if (ready != null && isActive && currentPlayingSongId == currentRawId) {
-                        Log.i(TAG, "Continuous Pipeline: PLAYING speech after background loader finished!")
-                        prefetchedIntervention = null
+                    val count = player?.mediaItemCount ?: 0
+                    val cur = player?.currentMediaItemIndex ?: 0
+                    val end = (cur + 4).coerceAtMost(count - 1)
+                    val upcomingInfos = if (count > 0) {
+                        (cur..end).mapNotNull { player?.getMediaItemAt(it)?.toDjSongInfo() }
+                    } else listOf(currentMediaItem.toDjSongInfo())
+                    val theme = resolveThemeForSong(currentMediaItem)
+
+                    val success = executeIntervention(
+                        theme = theme,
+                        upcomingSongs = upcomingInfos,
+                        previousSong = lastGenuineListenedSong,
+                        wasPreviousSongListened = (lastGenuineListenedSong != null)
+                    )
+                    if (success) {
                         lastIntervenedSongId = currentRawId
                         songsSinceIntervention = 0
-                        _lastSpeechScript.value = ready.script
-
-                        duckingCoordinator.prepareForIntervention()
-                        duckingCoordinator.playInterventionWithDucking(
-                            audioFile = ready.audioFile,
-                            fallbackText = ready.script
-                        ) {
-                            ready.audioFile?.let { try { it.delete() } catch (_: Exception) {} }
-                        }
-                        prepareNextIntervention()
                     }
+                    prepareNextIntervention()
                 }
+                return
             }
         }
     }
@@ -574,10 +586,14 @@ class DjEngine(
                     val player = playerProvider() ?: return@withContext Pair(null, emptyList<MediaItem>())
                     val count = player.mediaItemCount
                     if (count == 0) return@withContext Pair(null, emptyList<MediaItem>())
-                    val nextIndex = (player.currentMediaItemIndex + MIN_SONGS_BETWEEN_INTERVENTIONS).coerceIn(0, count - 1)
-                    val target = player.getMediaItemAt(nextIndex)
-                    val endIndex = (nextIndex + 4).coerceAtMost(count - 1)
-                    val slice = (nextIndex..endIndex).map { player.getMediaItemAt(it) }
+                    val curIndex = player.currentMediaItemIndex
+                    // Target is ALWAYS the start of the next 5-song block!
+                    val nextBlockStartIndex = ((curIndex / MIN_SONGS_BETWEEN_INTERVENTIONS) + 1) * MIN_SONGS_BETWEEN_INTERVENTIONS
+                    if (nextBlockStartIndex >= count) return@withContext Pair(null, emptyList<MediaItem>())
+
+                    val target = player.getMediaItemAt(nextBlockStartIndex)
+                    val endIndex = (nextBlockStartIndex + 4).coerceAtMost(count - 1)
+                    val slice = (nextBlockStartIndex..endIndex).map { player.getMediaItemAt(it) }
                     Pair(target, slice)
                 }
                 if (targetSong == null || upcomingSlice.isEmpty()) return@launch
@@ -586,7 +602,7 @@ class DjEngine(
                 val targetInfos = upcomingSlice.map { it.toDjSongInfo() }
                 val theme = resolveThemeForSong(targetSong)
 
-                Log.d(TAG, "Continuous Pipeline: Loading NEXT speech for mix starting with '${targetInfos.first().title}' (${targetInfos.size} songs in block, theme='$theme')")
+                Log.d(TAG, "Continuous Pipeline: Loading NEXT speech for mix starting with '${targetInfos.first().title}' (targetSongId=$targetRawId, ${targetInfos.size} songs in block, theme='$theme')")
                 val script = scriptGenerator.generateSpeech(
                     upcomingSongs = targetInfos,
                     blockTheme = theme,
@@ -609,7 +625,7 @@ class DjEngine(
                     audioFile = audioFile,
                     theme = theme
                 )
-                Log.i(TAG, "Continuous Pipeline: Next speech successfully cached and ready for instant playback!")
+                Log.i(TAG, "Continuous Pipeline: Next speech successfully cached for $targetRawId ('${targetInfos.first().title}')! Ready for instant playback.")
             } catch (e: CancellationException) {
                 Log.d(TAG, "Pipeline preparation cancelled.")
             } catch (e: Exception) {
