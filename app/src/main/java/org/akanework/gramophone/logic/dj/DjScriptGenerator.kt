@@ -23,10 +23,8 @@ class DjScriptGenerator(
     companion object {
         private const val TAG = "DjScriptGenerator"
         const val OPENCODE_BASE_URL = "https://opencode.ai/zen/go/v1/chat/completions"
+        const val OPENCODE_MODELS_URL = "https://opencode.ai/zen/go/v1/models"
         const val DEFAULT_OPENCODE_MODEL = "deepseek-v4.1-flash"
-
-        const val DIRECT_DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
-        const val DEFAULT_DEEPSEEK_MODEL = "deepseek-chat"
 
         private const val DJ_SYSTEM_PROMPT =
             "Eres Livi, la DJ y curadora musical personal de este reproductor. " +
@@ -57,7 +55,6 @@ class DjScriptGenerator(
                 return@withContext Result.failure(IllegalArgumentException("API Key no configurada"))
             }
 
-            val isOpenCode = apiKey.startsWith("oc_sk_") || apiKey.contains("opencode")
             val url = if (!customEndpoint.isNullOrBlank()) {
                 val trimmed = customEndpoint.trim()
                 if (trimmed.endsWith("/chat/completions")) {
@@ -68,7 +65,7 @@ class DjScriptGenerator(
                     "$trimmed/models"
                 }
             } else {
-                if (isOpenCode) "https://opencode.ai/zen/go/v1/models" else "https://api.deepseek.com/models"
+                OPENCODE_MODELS_URL
             }
 
             try {
@@ -80,11 +77,8 @@ class DjScriptGenerator(
                 val requestBuilder = Request.Builder()
                     .url(url)
                     .get()
-                    .addHeader("Authorization", "Bearer $apiKey")
-
-                if (isOpenCode) {
-                    requestBuilder.addHeader("x-opencode-session", "gramophone-dj-livi")
-                }
+                    .addHeader("Authorization", "Bearer ${apiKey.trim()}")
+                    .addHeader("x-opencode-session", "gramophone-dj-livi")
 
                 val response = client.newCall(requestBuilder.build()).execute()
                 if (!response.isSuccessful) {
@@ -124,34 +118,36 @@ class DjScriptGenerator(
     }
 
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(3, TimeUnit.SECONDS)
-        .readTimeout(4, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .writeTimeout(10, TimeUnit.SECONDS)
         .build()
 
     suspend fun generateSpeech(
         upcomingSongs: List<DjSongInfo>,
         blockTheme: String,
         previousSong: DjSongInfo? = null,
-        wasPreviousSongListened: Boolean = true
+        wasPreviousSongListened: Boolean = true,
+        timeoutMs: Long = 8000L
     ): String = withContext(Dispatchers.IO) {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         val apiKey = apiKeyProvider()?.trim()?.takeIf { it.isNotBlank() }
-            ?: prefs.getString("deepseek_api_key", null)?.trim()
+            ?: prefs.getString("opencode_api_key", null)?.trim()?.takeIf { it.isNotBlank() }
+            ?: prefs.getString("deepseek_api_key", null)?.trim()?.takeIf { it.isNotBlank() }
         if (apiKey.isNullOrBlank()) {
-            Log.d(TAG, "No API key configured, using offline template generator.")
+            Log.d(TAG, "No OpenCode API key configured, using offline template generator.")
             return@withContext generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong, wasPreviousSongListened)
         }
 
-        val isOpenCode = apiKey.startsWith("oc_sk_") || apiKey.contains("opencode")
         val endpoint = endpointProvider()?.trim()?.takeIf { it.isNotBlank() }
             ?: prefs.getString("dj_api_endpoint", null)?.trim()?.takeIf { it.isNotBlank() }
-            ?: if (isOpenCode) OPENCODE_BASE_URL else DIRECT_DEEPSEEK_URL
+            ?: OPENCODE_BASE_URL
 
         val rawModel = modelProvider()?.trim()?.takeIf { it.isNotBlank() }
             ?: prefs.getString("dj_api_model", null)?.trim()?.takeIf { it.isNotBlank() }
         val model = if (rawModel.isNullOrBlank() || rawModel == "custom") {
             val custom = prefs.getString("dj_api_model_custom", null)?.trim()
-            if (!custom.isNullOrBlank()) custom else if (isOpenCode) DEFAULT_OPENCODE_MODEL else DEFAULT_DEEPSEEK_MODEL
+            if (!custom.isNullOrBlank()) custom else DEFAULT_OPENCODE_MODEL
         } else {
             rawModel
         }
@@ -175,23 +171,21 @@ class DjScriptGenerator(
             }
 
             val body = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-            val requestBuilder = Request.Builder()
+            val request = Request.Builder()
                 .url(endpoint)
                 .addHeader("Authorization", "Bearer ${apiKey.trim()}")
                 .addHeader("Content-Type", "application/json")
+                .addHeader("x-opencode-session", "gramophone-dj-livi")
+                .post(body)
+                .build()
 
-            if (isOpenCode) {
-                requestBuilder.addHeader("x-opencode-session", "gramophone-dj-livi")
-            }
+            Log.d(TAG, "Requesting script from $endpoint using model $model (timeout=${timeoutMs}ms)")
 
-            val request = requestBuilder.post(body).build()
-            Log.d(TAG, "Requesting script from $endpoint using model $model (isOpenCode=$isOpenCode)")
-
-            val script = withTimeoutOrNull(2500L) {
+            val script = withTimeoutOrNull(timeoutMs) {
                 val response = httpClient.newCall(request).execute()
                 if (!response.isSuccessful) {
                     val errBody = response.body?.string() ?: ""
-                    Log.w(TAG, "API call failed (${response.code} ${response.message}): $errBody")
+                    Log.w(TAG, "OpenCode API call failed (${response.code} ${response.message}): $errBody")
                     return@withTimeoutOrNull null
                 }
 
@@ -217,13 +211,13 @@ class DjScriptGenerator(
             }
 
             if (!script.isNullOrBlank()) {
-                Log.i(TAG, "Generated and sanitized script: $script")
+                Log.i(TAG, "Generated and sanitized script from OpenCode: $script")
                 return@withContext script
             }
 
-            Log.w(TAG, "LLM returned empty or timed out (>2.5s), falling back to rich local generator.")
+            Log.w(TAG, "OpenCode LLM returned empty or timed out (>${timeoutMs}ms), falling back to rich local generator.")
         } catch (e: Exception) {
-            Log.w(TAG, "Exception calling LLM endpoint ($endpoint), falling back to local script", e)
+            Log.w(TAG, "Exception calling OpenCode endpoint ($endpoint), falling back to local script", e)
         }
 
         generateOfflineFallbackScript(upcomingSongs, blockTheme, previousSong, wasPreviousSongListened)

@@ -507,7 +507,10 @@ class FullBottomSheet
             val djEngine = service?.djEngine ?: DjEngine.getInstance(
                 context = context,
                 playerProvider = { service?.endedWorkaroundPlayer?.exoPlayer },
-                apiKeyProvider = { prefs.getString("deepseek_api_key", null) },
+                apiKeyProvider = {
+                    prefs.getString("opencode_api_key", null)?.trim()?.takeIf { it.isNotBlank() }
+                        ?: prefs.getString("deepseek_api_key", null)?.trim()
+                },
                 endpointProvider = { prefs.getString("dj_api_endpoint", null) },
                 modelProvider = {
                     val m = prefs.getString("dj_api_model", null)

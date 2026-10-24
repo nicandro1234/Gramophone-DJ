@@ -215,7 +215,8 @@ class DjEngine(
                     upcomingSongs = listOf(songInfo),
                     blockTheme = theme,
                     previousSong = null,
-                    wasPreviousSongListened = false
+                    wasPreviousSongListened = false,
+                    timeoutMs = 15000L
                 )
 
                 if (!isActive) return@launch
@@ -338,13 +339,19 @@ class DjEngine(
         }
 
         cancelAllActiveTasks()
-        clearPrefetch()
+        // Retain initial pre-warmed cache if available, otherwise clear stale cache
+        val initialCache = prefetchedIntervention?.takeIf { it.targetSongId == "initial" }
+        if (initialCache == null) {
+            clearPrefetch()
+        }
         songsSinceIntervention = 0
         lastGenuineListenedSong = null
         lastIntervenedSongId = null
 
-        // 1. Pre-duck volume immediately so playback starts attenuated
-        duckingCoordinator.prepareForIntervention()
+        // 1. Only pre-duck volume immediately if we have cached speech ready for 0ms playback
+        if (prefetchedIntervention != null) {
+            duckingCoordinator.prepareForIntervention()
+        }
 
         // 2. Generate a fresh cluster of blocks
         val blocks = clusterer.clusterTracks(songs)
@@ -603,7 +610,8 @@ class DjEngine(
                     upcomingSongs = listOf(targetInfo),
                     blockTheme = theme,
                     previousSong = prevSong,
-                    wasPreviousSongListened = (prevSong != null)
+                    wasPreviousSongListened = (prevSong != null),
+                    timeoutMs = 15000L
                 )
                 if (!isActive) return@launch
 
@@ -762,7 +770,8 @@ class DjEngine(
                 upcomingSongs = upcomingSongs,
                 blockTheme = theme,
                 previousSong = previousSong,
-                wasPreviousSongListened = wasPreviousSongListened
+                wasPreviousSongListened = wasPreviousSongListened,
+                timeoutMs = 8000L
             )
             if (!coroutineContext.isActive) return@withContext
 

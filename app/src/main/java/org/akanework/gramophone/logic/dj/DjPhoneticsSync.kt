@@ -70,7 +70,7 @@ object DjPhoneticsSync {
     }
 
     /**
-     * Connects to OpenCode / DeepSeek LLM to generate Spanish phonetic respellings
+     * Connects to OpenCode LLM to generate Spanish phonetic respellings
      * for missing foreign artists and stores them into the user's preferences.
      *
      * @return Result containing number of new pronunciations added.
@@ -92,14 +92,13 @@ object DjPhoneticsSync {
             return@withContext Result.success(0)
         }
 
-        Log.i(TAG, "Found ${missing.size} missing artists to process with LLM.")
+        Log.i(TAG, "Found ${missing.size} missing artists to process with OpenCode LLM.")
 
-        val isOpenCode = apiKey.startsWith("oc_sk_") || apiKey.contains("opencode")
         val endpoint = customEndpoint?.takeIf { it.isNotBlank() }
-            ?: if (isOpenCode) DjScriptGenerator.OPENCODE_BASE_URL else DjScriptGenerator.DIRECT_DEEPSEEK_URL
+            ?: DjScriptGenerator.OPENCODE_BASE_URL
 
         val model = customModel?.takeIf { it.isNotBlank() && it != "custom" }
-            ?: if (isOpenCode) DjScriptGenerator.DEFAULT_OPENCODE_MODEL else DjScriptGenerator.DEFAULT_DEEPSEEK_MODEL
+            ?: DjScriptGenerator.DEFAULT_OPENCODE_MODEL
 
         val client = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
@@ -144,16 +143,15 @@ object DjPhoneticsSync {
                 }
 
                 val body = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-                val requestBuilder = Request.Builder()
+                val request = Request.Builder()
                     .url(endpoint)
                     .addHeader("Authorization", "Bearer ${apiKey.trim()}")
                     .addHeader("Content-Type", "application/json")
+                    .addHeader("x-opencode-session", "gramophone-dj-livi")
+                    .post(body)
+                    .build()
 
-                if (isOpenCode) {
-                    requestBuilder.addHeader("x-opencode-session", "gramophone-dj-livi")
-                }
-
-                val response = client.newCall(requestBuilder.post(body).build()).execute()
+                val response = client.newCall(request).execute()
                 if (!response.isSuccessful) {
                     val err = response.body?.string() ?: ""
                     Log.w(TAG, "Batch ${index + 1} failed (${response.code}): $err")

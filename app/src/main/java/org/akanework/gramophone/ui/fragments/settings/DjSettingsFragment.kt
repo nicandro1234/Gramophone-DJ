@@ -33,38 +33,44 @@ class DjSettingsFragment : BasePreferenceFragment() {
 
         allowDiskAccessInStrictMode {
             val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
-        val apiKeyPref = findPreference<EditTextPreference>("deepseek_api_key")
-        val modelPref = findPreference<ListPreference>("dj_api_model")
-        val customModelPref = findPreference<EditTextPreference>("dj_api_model_custom")
-        val fetchModelsPref = findPreference<Preference>("dj_fetch_models")
-
-        loadCachedModels(modelPref, prefs)
-
-        customModelPref?.isVisible = (modelPref?.value == "custom")
-
-        modelPref?.setOnPreferenceChangeListener { _, newValue ->
-            customModelPref?.isVisible = (newValue == "custom")
-            true
-        }
-
-        apiKeyPref?.setOnPreferenceChangeListener { _, newValue ->
-            val newKey = (newValue as? String)?.trim()
-            if (!newKey.isNullOrBlank()) {
-                fetchLiveModels(modelPref, prefs, overrideKey = newKey, silent = false)
+            // Automatic migration from deepseek_api_key to opencode_api_key
+            if (!prefs.contains("opencode_api_key") && prefs.contains("deepseek_api_key")) {
+                prefs.edit().putString("opencode_api_key", prefs.getString("deepseek_api_key", null)).apply()
             }
-            true
-        }
+            val apiKeyPref = findPreference<EditTextPreference>("opencode_api_key")
+                ?: findPreference<EditTextPreference>("deepseek_api_key")
+            val modelPref = findPreference<ListPreference>("dj_api_model")
+            val customModelPref = findPreference<EditTextPreference>("dj_api_model_custom")
+            val fetchModelsPref = findPreference<Preference>("dj_fetch_models")
 
-        fetchModelsPref?.setOnPreferenceClickListener {
-            fetchLiveModels(modelPref, prefs, silent = false)
-            true
-        }
+            loadCachedModels(modelPref, prefs)
 
-        // Auto-fetch fresh models from API on opening settings if key is present
-        val currentApiKey = prefs.getString("deepseek_api_key", null)?.trim()
-        if (!currentApiKey.isNullOrBlank()) {
-            fetchLiveModels(modelPref, prefs, silent = true)
-        }
+            customModelPref?.isVisible = (modelPref?.value == "custom")
+
+            modelPref?.setOnPreferenceChangeListener { _, newValue ->
+                customModelPref?.isVisible = (newValue == "custom")
+                true
+            }
+
+            apiKeyPref?.setOnPreferenceChangeListener { _, newValue ->
+                val newKey = (newValue as? String)?.trim()
+                if (!newKey.isNullOrBlank()) {
+                    fetchLiveModels(modelPref, prefs, overrideKey = newKey, silent = false)
+                }
+                true
+            }
+
+            fetchModelsPref?.setOnPreferenceClickListener {
+                fetchLiveModels(modelPref, prefs, silent = false)
+                true
+            }
+
+            // Auto-fetch fresh models from OpenCode API on opening settings if key is present
+            val currentApiKey = (prefs.getString("opencode_api_key", null)
+                ?: prefs.getString("deepseek_api_key", null))?.trim()
+            if (!currentApiKey.isNullOrBlank()) {
+                fetchLiveModels(modelPref, prefs, silent = true)
+            }
 
         val voicePref = findPreference<ListPreference>("dj_tts_voice")
         loadAvailableVoices(voicePref, prefs)
@@ -171,17 +177,19 @@ class DjSettingsFragment : BasePreferenceFragment() {
         silent: Boolean = false
     ) {
         val context = context ?: return
-        val apiKey = (overrideKey ?: prefs.getString("deepseek_api_key", null))?.trim()
+        val apiKey = (overrideKey
+            ?: prefs.getString("opencode_api_key", null)
+            ?: prefs.getString("deepseek_api_key", null))?.trim()
         if (apiKey.isNullOrBlank()) {
             if (!silent) {
-                Toast.makeText(context, "Configurá primero tu API Key", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Configurá primero tu API Key de OpenCode", Toast.LENGTH_SHORT).show()
             }
             return
         }
 
         val endpoint = prefs.getString("dj_api_endpoint", null)?.trim()
         if (!silent) {
-            Toast.makeText(context, "Consultando modelos disponibles a la API...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Consultando modelos disponibles a OpenCode...", Toast.LENGTH_SHORT).show()
         }
 
         lifecycleScope.launch {
@@ -232,7 +240,10 @@ class DjSettingsFragment : BasePreferenceFragment() {
             val djEngine = service?.djEngine ?: DjEngine.getInstance(
                 context = context,
                 playerProvider = { service?.endedWorkaroundPlayer?.exoPlayer },
-                apiKeyProvider = { prefs.getString("deepseek_api_key", null) },
+                apiKeyProvider = {
+                    prefs.getString("opencode_api_key", null)?.trim()?.takeIf { it.isNotBlank() }
+                        ?: prefs.getString("deepseek_api_key", null)?.trim()
+                },
                 endpointProvider = { prefs.getString("dj_api_endpoint", null) },
                 modelProvider = {
                     val m = prefs.getString("dj_api_model", null)
@@ -246,9 +257,10 @@ class DjSettingsFragment : BasePreferenceFragment() {
 
     private fun syncPronunciationsWithLibrary(prefs: SharedPreferences, pref: Preference) {
         val context = requireContext()
-        val apiKey = prefs.getString("deepseek_api_key", null)?.trim()
+        val apiKey = (prefs.getString("opencode_api_key", null)
+            ?: prefs.getString("deepseek_api_key", null))?.trim()
         if (apiKey.isNullOrBlank()) {
-            Toast.makeText(context, "Configurá primero tu API Key de OpenCode o DeepSeek", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Configurá primero tu API Key de OpenCode", Toast.LENGTH_LONG).show()
             return
         }
 

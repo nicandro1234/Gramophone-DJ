@@ -10,7 +10,7 @@
 
     <EditTextPreference
         android:dialogTitle="@string/settings_dj_deepseek_key_title"
-        android:key="deepseek_api_key"
+        android:key="opencode_api_key"
         android:summary="@string/settings_dj_deepseek_key_summary"
         android:title="@string/settings_dj_deepseek_key_title" />
 
