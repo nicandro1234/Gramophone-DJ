@@ -30,7 +30,7 @@ class DjEngine(
 ) {
     companion object {
         private const val TAG = "DjEngine"
-        const val MIN_SONGS_BETWEEN_INTERVENTIONS = 5
+        const val MIN_SONGS_BETWEEN_INTERVENTIONS = 3
         const val MIN_PLAY_TIME_FOR_LISTEN_MS = 20_000L // 20s to be considered genuinely listened to
         const val PREFETCH_DELAY_MS = 15_000L // start prefetching 15s after song begins
 
@@ -111,28 +111,26 @@ class DjEngine(
     }
 
     /**
-     * Called whenever playback state changes (play / pause).
+     * Called whenever playback state changes (explicit user play / pause).
      */
-    fun onPlaybackStateChanged(isPlaying: Boolean) {
+    fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
         if (!_isDjModeEnabled.value) return
 
-        if (!isPlaying) {
-            // Player paused: halt speech immediately and cancel in-flight generation
+        if (!playWhenReady) {
+            // User paused playback: pause speech immediately
             isCurrentlyPaused = true
             currentPausedSongId = currentPlayingSongId
             prefetchWatcherJob?.cancel()
-            activeInterventionJob?.cancel()
             if (duckingCoordinator.isSpeaking.value) {
                 duckingCoordinator.onPlaybackPaused()
             }
-            Log.d(TAG, "onPlaybackStateChanged: paused on $currentPausedSongId. Speech and timers paused.")
+            Log.d(TAG, "onPlayWhenReadyChanged: paused on $currentPausedSongId. Speech paused.")
         } else {
-            // Player resumed
+            // User resumed playback
             if (isCurrentlyPaused && currentPlayingSongId == currentPausedSongId && currentPlayingSongId != null) {
                 isCurrentlyPaused = false
                 currentPausedSongId = null
-                Log.d(TAG, "onPlaybackStateChanged: resumed same song ($currentPlayingSongId). Not speaking.")
-                // Re-schedule prefetch watcher if not already done
+                Log.d(TAG, "onPlayWhenReadyChanged: resumed same song ($currentPlayingSongId).")
                 currentPlayingSongId?.let { schedulePrefetchWatcher(it) }
                 return
             }
@@ -284,15 +282,38 @@ class DjEngine(
 
         val blocks = _currentBlocks.value
 
-        // Check if intervention is due:
-        // 1. We have a matching prefetch ready for this exact song!
-        // 2. OR fully listened songs reached threshold (MIN_SONGS_BETWEEN_INTERVENTIONS) and not yet intervened on this song
+        var targetBlockIndex = blocks.indexOfFirst { block ->
+            block.songs.any { parseQueueTitle(it).first == currentRawId }
+        }
+        if (targetBlockIndex == -1) {
+            val player = playerProvider()
+            val playerIndex = player?.currentMediaItemIndex ?: -1
+            if (playerIndex >= 0 && clusterer.blockSize > 0) {
+                val candidateIndex = playerIndex / clusterer.blockSize
+                if (candidateIndex in blocks.indices) {
+                    targetBlockIndex = candidateIndex
+                }
+            }
+        }
+
+        val isNewBlock = (targetBlockIndex != -1 && targetBlockIndex != _activeBlockIndex.value)
         val cached = prefetchedIntervention
         val hasMatchingPrefetch = (cached != null && cached.targetSongId == currentRawId)
         val isFrequencyTrigger = (fullyListenedSongsSinceIntervention >= MIN_SONGS_BETWEEN_INTERVENTIONS)
         val isFirstSongSession = (lastIntervenedSongId == null)
 
-        if ((hasMatchingPrefetch || isFrequencyTrigger || isFirstSongSession) && currentRawId != lastIntervenedSongId) {
+        Log.d(
+            TAG,
+            "onSongTransition: targetBlockIndex=$targetBlockIndex, isNewBlock=$isNewBlock, hasMatchingPrefetch=$hasMatchingPrefetch, isFrequencyTrigger=$isFrequencyTrigger, isFirstSongSession=$isFirstSongSession (listenedCount=$fullyListenedSongsSinceIntervention)"
+        )
+
+        val shouldIntervene = (isNewBlock || hasMatchingPrefetch || isFrequencyTrigger || isFirstSongSession)
+
+        if (shouldIntervene && currentRawId != lastIntervenedSongId) {
+            if (targetBlockIndex != -1) {
+                _activeBlockIndex.value = targetBlockIndex
+            }
+
             if (cached != null && cached.targetSongId == currentRawId) {
                 // INSTANT PLAYBACK FROM PREFETCH CACHE (0 ms latency)
                 Log.i(TAG, "HIT PREFETCH CACHE for song $currentRawId! Starting instant DJ speech.")
@@ -315,13 +336,6 @@ class DjEngine(
             }
 
             // Fallback: no prefetch available, generate reactively with debounce
-            val targetBlockIndex = blocks.indexOfFirst { block ->
-                block.songs.any { parseQueueTitle(it).first == currentRawId }
-            }
-            if (targetBlockIndex != -1) {
-                _activeBlockIndex.value = targetBlockIndex
-            }
-
             val theme = resolveThemeForSong(currentMediaItem)
             val prevSongForScript = lastGenuineListenedSong
             val wasListened = (prevSongForScript != null)
@@ -329,7 +343,7 @@ class DjEngine(
             lastIntervenedSongId = currentRawId
             fullyListenedSongsSinceIntervention = 0
 
-            val debounceMs = if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) 800L else 0L
+            val debounceMs = if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) 400L else 0L
 
             activeInterventionJob = scope.launch {
                 if (debounceMs > 0L) {
@@ -361,15 +375,19 @@ class DjEngine(
             delay(PREFETCH_DELAY_MS)
             if (!isActive || currentPlayingSongId != forSongId || isCurrentlyPaused) return@launch
 
-            // Check if the NEXT song will be an intervention point
-            if (fullyListenedSongsSinceIntervention + 1 >= MIN_SONGS_BETWEEN_INTERVENTIONS) {
-                val player = playerProvider() ?: return@launch
-                val nextIndex = player.currentMediaItemIndex + 1
-                if (nextIndex in 0 until player.mediaItemCount) {
-                    val nextItem = player.getMediaItemAt(nextIndex)
-                    val nextRawId = parseQueueTitle(nextItem).first
+            val player = playerProvider() ?: return@launch
+            val nextIndex = player.currentMediaItemIndex + 1
+            if (nextIndex in 0 until player.mediaItemCount) {
+                val nextItem = player.getMediaItemAt(nextIndex)
+                val nextRawId = parseQueueTitle(nextItem).first
+                val blocks = _currentBlocks.value
+                val nextBlockIndex = blocks.indexOfFirst { b -> b.songs.any { parseQueueTitle(it).first == nextRawId } }
+                val isNextNewBlock = (nextBlockIndex != -1 && nextBlockIndex != _activeBlockIndex.value)
+                val isNextFrequency = (fullyListenedSongsSinceIntervention + 1 >= MIN_SONGS_BETWEEN_INTERVENTIONS)
+
+                if (isNextNewBlock || isNextFrequency) {
                     if (prefetchedIntervention?.targetSongId != nextRawId) {
-                        Log.i(TAG, "Prefetch watcher: initiating prefetch for upcoming track: $nextRawId")
+                        Log.i(TAG, "Prefetch watcher: initiating prefetch for upcoming track: $nextRawId (newBlock=$isNextNewBlock, freq=$isNextFrequency)")
                         triggerPrefetchForSong(nextItem)
                     }
                 }

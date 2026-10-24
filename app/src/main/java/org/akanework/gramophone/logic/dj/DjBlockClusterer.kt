@@ -6,7 +6,7 @@ import java.util.UUID
 class DjBlockClusterer {
 
     companion object {
-        const val DEFAULT_BLOCK_SIZE = 5
+        const val DEFAULT_BLOCK_SIZE = 3
     }
 
     val blockSize: Int = DEFAULT_BLOCK_SIZE
