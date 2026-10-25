@@ -236,6 +236,7 @@ class ViewPagerFragment : BaseFragment(true) {
                     )
 
                     if (newEnabled) {
+                        djEngine.setDjModeEnabled(true)
                         Toast.makeText(requireContext(), "🎧 Modo DJ Livi activado", Toast.LENGTH_SHORT).show()
                         lifecycleScope.launch {
                             val songs = activity.reader.songListFlow.first()

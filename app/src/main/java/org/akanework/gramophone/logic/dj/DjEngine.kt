@@ -357,10 +357,6 @@ class DjEngine(
      * - Cluster songs, populate queue, begin playback, and trigger first block intro speech.
      */
     fun startDjSession(controller: Player?, songs: List<MediaItem>) {
-        if (!_isDjModeEnabled.value) {
-            Log.d(TAG, "startDjSession skipped: DJ mode was disabled prior to invocation.")
-            return
-        }
         setDjModeEnabled(true)
         if (songs.isEmpty()) {
             Log.w(TAG, "No songs available to start DJ session.")
@@ -473,8 +469,8 @@ class DjEngine(
             }
         }
 
-        // Cancel previous pending speech playback if user skipped to another song
-        if (currentRawId != lastIntervenedSongId) {
+        // Cancel previous pending speech playback if user skipped to a different song
+        if (currentPlayingSongId != null && currentPlayingSongId != currentRawId) {
             activeInterventionJob?.cancel()
             if (duckingCoordinator.isSpeaking.value) {
                 duckingCoordinator.cancelSpeechAndRestore()

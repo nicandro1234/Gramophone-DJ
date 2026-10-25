@@ -521,6 +521,7 @@ class FullBottomSheet
             )
 
             if (next) {
+                djEngine.setDjModeEnabled(true)
                 Toast.makeText(context, "🎧 Modo DJ Livi activado", Toast.LENGTH_SHORT).show()
                 activity.lifecycleScope.launch {
                     val songs = activity.reader.songListFlow.first()
