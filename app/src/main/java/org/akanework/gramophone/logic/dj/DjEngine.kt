@@ -357,6 +357,10 @@ class DjEngine(
      * - Cluster songs, populate queue, begin playback, and trigger first block intro speech.
      */
     fun startDjSession(controller: Player?, songs: List<MediaItem>) {
+        if (!_isDjModeEnabled.value) {
+            Log.d(TAG, "startDjSession skipped: DJ mode was disabled prior to invocation.")
+            return
+        }
         setDjModeEnabled(true)
         if (songs.isEmpty()) {
             Log.w(TAG, "No songs available to start DJ session.")
@@ -544,15 +548,17 @@ class DjEngine(
                     clearPrefetch()
                 }
 
-                activeInterventionJob = scope.launch {
-                    val count = player?.mediaItemCount ?: 0
-                    val cur = player?.currentMediaItemIndex ?: 0
-                    val end = (cur + 4).coerceAtMost(count - 1)
-                    val upcomingInfos = if (count > 0) {
-                        (cur..end).mapNotNull { player?.getMediaItemAt(it)?.toDjSongInfo() }
-                    } else listOf(currentMediaItem.toDjSongInfo())
-                    val theme = resolveThemeForSong(currentMediaItem)
+                // CRITICAL: Extract player info synchronously on the main thread before launching background coroutine.
+                // Accessing ExoPlayer methods from Dispatchers.Default or Dispatchers.IO throws IllegalStateException.
+                val count = player?.mediaItemCount ?: 0
+                val cur = player?.currentMediaItemIndex ?: 0
+                val end = (cur + 4).coerceAtMost(count - 1)
+                val upcomingInfos = if (count > 0) {
+                    (cur..end).mapNotNull { player?.getMediaItemAt(it)?.toDjSongInfo() }
+                } else listOf(currentMediaItem.toDjSongInfo())
+                val theme = resolveThemeForSong(currentMediaItem)
 
+                activeInterventionJob = scope.launch {
                     val success = executeIntervention(
                         theme = theme,
                         upcomingSongs = upcomingInfos,
@@ -582,19 +588,24 @@ class DjEngine(
                 delay(800L)
                 if (!isActive) return@launch
 
-                val (targetSong, upcomingSlice) = withContext(Dispatchers.Main) {
-                    val player = playerProvider() ?: return@withContext Pair(null, emptyList<MediaItem>())
-                    val count = player.mediaItemCount
-                    if (count == 0) return@withContext Pair(null, emptyList<MediaItem>())
-                    val curIndex = player.currentMediaItemIndex
-                    // Target is ALWAYS the start of the next 5-song block!
-                    val nextBlockStartIndex = ((curIndex / MIN_SONGS_BETWEEN_INTERVENTIONS) + 1) * MIN_SONGS_BETWEEN_INTERVENTIONS
-                    if (nextBlockStartIndex >= count) return@withContext Pair(null, emptyList<MediaItem>())
+                val (targetSong, upcomingSlice) = try {
+                    withContext(Dispatchers.Main) {
+                        val player = playerProvider() ?: return@withContext Pair(null, emptyList<MediaItem>())
+                        val count = player.mediaItemCount
+                        if (count == 0) return@withContext Pair(null, emptyList<MediaItem>())
+                        val curIndex = player.currentMediaItemIndex
+                        // Target is ALWAYS the start of the next 5-song block!
+                        val nextBlockStartIndex = ((curIndex / MIN_SONGS_BETWEEN_INTERVENTIONS) + 1) * MIN_SONGS_BETWEEN_INTERVENTIONS
+                        if (nextBlockStartIndex >= count) return@withContext Pair(null, emptyList<MediaItem>())
 
-                    val target = player.getMediaItemAt(nextBlockStartIndex)
-                    val endIndex = (nextBlockStartIndex + 4).coerceAtMost(count - 1)
-                    val slice = (nextBlockStartIndex..endIndex).map { player.getMediaItemAt(it) }
-                    Pair(target, slice)
+                        val target = player.getMediaItemAt(nextBlockStartIndex)
+                        val endIndex = (nextBlockStartIndex + 4).coerceAtMost(count - 1)
+                        val slice = (nextBlockStartIndex..endIndex).map { player.getMediaItemAt(it) }
+                        Pair(target, slice)
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to read upcoming block from player", e)
+                    Pair(null, emptyList())
                 }
                 if (targetSong == null || upcomingSlice.isEmpty()) return@launch
 

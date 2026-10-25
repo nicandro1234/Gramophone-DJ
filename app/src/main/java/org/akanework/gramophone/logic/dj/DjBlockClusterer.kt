@@ -119,6 +119,7 @@ class DjBlockClusterer {
         // If user picked a specific mood, prioritize relevant thematic blocks to the front!
         if (mood != "classic") {
             val moodKeywords = when (mood) {
+                "car" -> listOf("rock", "pop", "electronic", "dance", "synthwave", "funk", "classic", "road", "beat", "drive")
                 "metal" -> listOf("metal", "rock", "core", "heavy", "punk", "hard")
                 "electro" -> listOf("electro", "dance", "synth", "house", "techno", "edm", "trance", "club")
                 "chill" -> listOf("chill", "acoustic", "lofi", "ambient", "indie", "jazz", "soul", "folk")

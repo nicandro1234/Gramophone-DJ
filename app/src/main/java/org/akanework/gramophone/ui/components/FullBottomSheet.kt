@@ -524,6 +524,7 @@ class FullBottomSheet
                 Toast.makeText(context, "🎧 Modo DJ Livi activado", Toast.LENGTH_SHORT).show()
                 activity.lifecycleScope.launch {
                     val songs = activity.reader.songListFlow.first()
+                    if (!prefs.getBoolean("dj_mode_enabled", false)) return@launch
                     djEngine.startDjSession(activity.getPlayer(), songs)
                 }
             } else {
@@ -738,6 +739,7 @@ class FullBottomSheet
     private fun showDjMoodDialog() {
         val moods = listOf(
             Triple("classic", "DJ Clásico (Predeterminado)", "Selección equilibrada según tu música y hora actual."),
+            Triple("car", "DJ Coche (Música para el Auto)", "Ritmo dinámico, rutero y entretenido para manejar."),
             Triple("party", "DJ Fiesta", "Ritmo arriba, alegre, alta energía para bailar y festejar."),
             Triple("chill", "DJ Reunión Chill", "Música relajada y distendida, ideal de fondo para charlar."),
             Triple("metal", "DJ Metalero", "Pura potencia, guitarras pesadas, metal y rock crudo."),

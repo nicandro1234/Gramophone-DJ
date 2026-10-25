@@ -41,6 +41,7 @@ class DjDuckingCoordinator(
 
     private var speechPlayer: MediaPlayer? = null
     private var volumeAnimator: ValueAnimator? = null
+    private var pendingDuckingRunnable: Runnable? = null
     private var audioFocusRequest: AudioFocusRequest? = null
 
     private var systemTts: TextToSpeech? = null
@@ -311,16 +312,20 @@ class DjDuckingCoordinator(
             start()
         }
 
-        mainHandler.postDelayed({
+        val duckRunnable = Runnable {
+            pendingDuckingRunnable = null
             // Force final ducked volume at the end of the ramp
             applyVolumeToPlayer(player, targetVol)
             onDucked()
-        }, RAMP_DURATION_MS)
+        }
+        pendingDuckingRunnable = duckRunnable
+        mainHandler.postDelayed(duckRunnable, RAMP_DURATION_MS)
     }
 
     private fun restorePlayer(player: Player?, onRestored: () -> Unit) {
         _duckingState.value = DjDuckingState.RESTORING
         volumeAnimator?.cancel()
+        pendingDuckingRunnable?.let { mainHandler.removeCallbacks(it) }
 
         val startVol = player?.volume ?: getDuckingVolume()
         volumeAnimator = ValueAnimator.ofFloat(startVol, NORMAL_VOLUME).apply {
@@ -332,12 +337,15 @@ class DjDuckingCoordinator(
             start()
         }
 
-        mainHandler.postDelayed({
+        val restoreRunnable = Runnable {
+            pendingDuckingRunnable = null
             applyVolumeToPlayer(player, NORMAL_VOLUME)
             _duckingState.value = DjDuckingState.IDLE
             _isSpeaking.value = false
             onRestored()
-        }, RAMP_DURATION_MS)
+        }
+        pendingDuckingRunnable = restoreRunnable
+        mainHandler.postDelayed(restoreRunnable, RAMP_DURATION_MS)
     }
 
     fun applyVolumeToPlayer(player: Player?, volume: Float) {
@@ -476,6 +484,10 @@ class DjDuckingCoordinator(
     }
 
     fun cancelSpeechAndRestore() {
+        volumeAnimator?.cancel()
+        volumeAnimator = null
+        pendingDuckingRunnable?.let { mainHandler.removeCallbacks(it) }
+        pendingDuckingRunnable = null
         releaseSpeechPlayer()
         activeUtteranceId = null
         try {

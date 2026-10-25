@@ -318,6 +318,7 @@ class DjScriptGenerator(
 
         // Specific Mood Directives (only injected if user selected a custom mood)
         val moodDirective = when (djMood) {
+            "car" -> "PARÁMETRO PRIMORDIAL - MODO DJ COCHE / CARRETERA: El usuario va al volante / manejando en la ruta. Transmite actitud rutera, despierta, dinámica y entretenida, ideal para acompañar el camino con buen ritmo."
             "party" -> "PARÁMETRO PRIMORDIAL - MODO DJ FIESTA: El usuario está de fiesta. Mantén una vibra alta, energética, alegre y motivadora para bailar y festejar."
             "chill" -> "PARÁMETRO PRIMORDIAL - MODO DJ REUNIÓN CHILL: El ambiente es una reunión relajada con amigos. Tono suave, tranquilo, cálido, música de fondo que acompaña la charla sin estridencias."
             "metal" -> "PARÁMETRO PRIMORDIAL - MODO DJ METALERO: Actitud metalera y rockera auténtica. Pura potencia, guitarras pesadas, energía cruda y visceral."
